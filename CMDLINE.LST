@@ -1,0 +1,84 @@
+Turbo Assembler	 Version 4.1	    02/10/26 23:58:17	    Page 1
+cmdline.asm
+
+
+
+      1	0000			     .model tiny
+      2	0000			     .code
+      3
+      4				     org 100h
+      5
+      6	      =0024		     END_STR	     equ '$'
+      7	      =B800		     VIDEO_SEG	     equ 0b800h
+      8
+      9	0100  B8 B800		     Start:	     mov ax, VIDEO_SEG		     ; b800h - segment of vram
+     10	0103  8E C0				     mov es, ax			     ; es - extended segment
+     11	0105  BB 0370				     mov bx, (2	* 80 * 5 + 2 * 40)   ; bx = (center of 5th line)
+     12
+     13	0108  BE 0080				     mov si, 80h
+     14	010B  8A 0C				     mov byte ptr cl, [si]	     ; CX = CmdTailLen (-1 for \r)
+     15	010D  83 E9 01				     sub cx, 1
+     16	0110  BF 0082				     mov di, 82h	     ; DI = &CmdTail
+     17
+     18	0113  E3 12				     jcxz LOOP_END
+     19
+     20	0115			     LOOP_START:
+     21	0115  8A 05				     mov al, [di]
+     22
+     23						     ; put symbol in first byte
+     24						     ; put color in second byte
+     25
+     26	0117  26: 88 07				     mov byte ptr es:[bx], al
+     27	011A  26: C6 47	01 CE			     mov byte ptr es:[bx + 01],	(4eh or	80h)
+     28
+     29	011F  83 C3 02				     add bx, 2		     ; go to the next symbol in	vram
+     30	0122  83 C7 01				     add di, 1		     ; get next	symbol
+     31
+     32	0125  E2 EE				     loop LOOP_START	     ; jmp back	if cx is not 0
+     33
+     34	0127			     LOOP_END:
+     35
+     36	0127  B8 4C00				     mov ax, 4c00h	     ; exit(0)
+     37	012A  CD 21				     int 21h		     ; int for DOS func	call
+     38
+     39	012C  4D 45 4F 57 20 4D	49+  Hello	     db	'MEOW MIR', 03h, '$'
+     40	      52 03 24
+     41
+     42				     end	     Start
+Turbo Assembler	 Version 4.1	    02/10/26 23:58:17	    Page 2
+Symbol Table
+
+
+
+
+Symbol Name			  Type	 Value
+
+??DATE				  Text	 "02/10/26"
+??FILENAME			  Text	 "cmdline "
+??TIME				  Text	 "23:58:17"
+??VERSION			  Number 040A
+@32BIT				  Text	 0
+@CODE				  Text	 DGROUP
+@CODESIZE			  Text	 0
+@CPU				  Text	 0101H
+@CURSEG				  Text	 _TEXT
+@DATA				  Text	 DGROUP
+@DATASIZE			  Text	 0
+@FILENAME			  Text	 CMDLINE
+@INTERFACE			  Text	 000H
+@MODEL				  Text	 1
+@STACK				  Text	 DGROUP
+@WORDSIZE			  Text	 2
+END_STR				  Number 0024
+HELLO				  Byte	 DGROUP:012C
+LOOP_END			  Near	 DGROUP:0127
+LOOP_START			  Near	 DGROUP:0115
+START				  Near	 DGROUP:0100
+VIDEO_SEG			  Number B800
+
+Groups & Segments		  Bit Size Align  Combine Class
+
+DGROUP				  Group
+  _DATA				  16  0000 Word	  Public  DATA
+  _TEXT				  16  0136 Word	  Public  CODE
+

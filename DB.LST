@@ -1,0 +1,86 @@
+Turbo Assembler	 Version 4.1	    02/10/26 23:05:47	    Page 1
+db.asm
+
+
+
+      1	0000			     .model tiny
+      2	0000			     .code
+      3
+      4				     org 100h
+      5
+      6	      =0024		     END_STR	     equ '$'
+      7
+      8	0100  B8 B800		     Start:	     mov ax, 0b800h		     ; b800h - segment of vram
+      9	0103  8E C0				     mov es, ax			     ; es - extended segment
+     10	0105  BB 0370				     mov bx, (2	* 80 * 5 + 2 * 40)   ; bx = (center of 5th line)
+     11
+     12	0108  B9 03E8				     mov cx, 1000		     ; CX = 1000 - max of iters
+     13	010B  BF 012Dr				     mov di, offset Hello	     ; DX = &Hello
+     14
+     15	010E			     LOOP_START:
+     16	010E  8A 05				     mov byte ptr al, [di]	     ; al = *(Hello + iters)
+     17
+     18	0110  3C 24				     cmp al, END_STR		     ; check for the '$' symbol
+     19
+     20	0112  74 14				     je	line_end
+     21
+     22						     ; put symbol in first byte
+     23						     ; put color in second byte
+     24
+     25	0114  26: 88 07				     mov byte ptr es:[bx], al
+     26	0117  26: C6 47	01 CE			     mov byte ptr es:[bx + 01],	(4eh or	80h)
+     27
+     28	011C  83 C3 02				     add bx, 2		     ; go to the next symbol in	vram
+     29	011F  83 C7 01				     add di, 1		     ; get next	symbol
+     30
+     31	0122  83 FF 24				     cmp di, END_STR ; check string end
+     32
+     33	0125  49				     dec cx
+     34
+     35	0126  E2 E6				     loop LOOP_START	     ; jmp back	if cx is not 0
+     36
+     37	0128			     line_end:
+     38
+     39	0128  B8 4C00				     mov ax, 4c00h	     ; exit(0)
+     40	012B  CD 21				     int 21h		     ; int for DOS func	call
+     41
+     42	012D  4D 45 4F 57 20 4D	49+  Hello	     db	'MEOW MIR', 03h, '$'
+     43	      52 03 24
+     44
+     45				     end	     Start
+Turbo Assembler	 Version 4.1	    02/10/26 23:05:47	    Page 2
+Symbol Table
+
+
+
+
+Symbol Name			  Type	 Value
+
+??DATE				  Text	 "02/10/26"
+??FILENAME			  Text	 "db	  "
+??TIME				  Text	 "23:05:47"
+??VERSION			  Number 040A
+@32BIT				  Text	 0
+@CODE				  Text	 DGROUP
+@CODESIZE			  Text	 0
+@CPU				  Text	 0101H
+@CURSEG				  Text	 _TEXT
+@DATA				  Text	 DGROUP
+@DATASIZE			  Text	 0
+@FILENAME			  Text	 DB
+@INTERFACE			  Text	 000H
+@MODEL				  Text	 1
+@STACK				  Text	 DGROUP
+@WORDSIZE			  Text	 2
+END_STR				  Number 0024
+HELLO				  Byte	 DGROUP:012D
+LINE_END			  Near	 DGROUP:0128
+LOOP_START			  Near	 DGROUP:010E
+START				  Near	 DGROUP:0100
+
+Groups & Segments		  Bit Size Align  Combine Class
+
+DGROUP				  Group
+  _DATA				  16  0000 Word	  Public  DATA
+  _TEXT				  16  0137 Word	  Public  CODE
+
