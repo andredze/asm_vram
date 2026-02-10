@@ -16,6 +16,17 @@ Start:      	mov ax, VIDEO_SEG 		; b800h - segment of vram
 		sub cx, 1
 		mov di, 82h		; DI = &CmdTail
 
+		mov si, cx		; si = CmdTailLen
+		
+		; if CmdTailLen is odd
+		test si, 01h
+		
+		jz EVEN_NUMBER
+		inc si			; if the number is odd -> move 1 byte more left
+EVEN_NUMBER:																
+					; no need to div by 2, as there are 2 bytes in vram
+		sub bx, si		; center the CmdLine
+
 		jcxz LOOP_END
 
 LOOP_START:
@@ -34,7 +45,6 @@ LOOP_START:
 		loop LOOP_START 	; jmp back if cx is not 0
 
 LOOP_END:
-
 		mov ax, 4c00h		; exit(0)
 		int 21h			; int for DOS func call
 
