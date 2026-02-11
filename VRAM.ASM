@@ -5,24 +5,26 @@ org 100h
 
 ;//------------------------------------------------------------------------------------------
 
-SCREEN_WIDTH	equ 80
-VIDEO_SEG	    equ 0b800h
+BKGND_COLOR      equ 070h
+
+SCREEN_WIDTH	 equ 80
+VIDEO_SEG	     equ 0b800h
 
 FRAME_START_LINE equ 5
 
-FRAME_COLOR		equ 0Fh
-FRAME_WIDTH		equ 40
-FRAME_HEIGHT 	equ 6
+FRAME_COLOR		 equ 00h
+FRAME_WIDTH		 equ 40
+FRAME_HEIGHT 	 equ 6
 
-HORIZ_LINE	    equ 0cdh
-VERT_LINE	    equ 0bah
-LU_CORNER	    equ 0c9h
-RU_CORNER	    equ 0bbh
-LD_CORNER	    equ 0c8h
-RD_CORNER	    equ 0bch
+HORIZ_LINE	     equ 0cdh
+VERT_LINE	     equ 0bah
+LU_CORNER	     equ 0c9h
+RU_CORNER	     equ 0bbh
+LD_CORNER	     equ 0c8h
+RD_CORNER	     equ 0bch
 
-BRT_RED_CLR	    equ 0ch
-BLINKING	    equ 80h
+BRT_RED_CLR	     equ 0ch
+BLINKING	     equ 80h
 
 ;//------------------------------------------------------------------------------------------
 
@@ -37,58 +39,20 @@ Start:
         call DrawFrame
         pop di
 
-		add di, (2 * SCREEN_WIDTH * ((FRAME_HEIGHT - 1) / 2))   ; newline
+        push di
 
-;//------------------------------------------------------------------------------------------
-; get cmd line
+		add di, (2 * SCREEN_WIDTH * ((FRAME_HEIGHT - 1) / 2))   ;
 
-        ; CX = CmdTailLen - 1 (for the last \r)
-        mov si, 80h
-        mov byte ptr cl, [si]
+        call PrintCmdLine
 
-        ; if CmdTailLen == 0 -> jump to the end
-        jcxz LoadLineEnd
-
-        dec cx
-
-        ; SI = &CmdTail
-        mov si, 82h
-
-;//------------------------------------------------------------------------------------------
-; center the text
-
-        ; BX = shift to the left
-        ; BX = StringLen
-        mov bx, cx
-
-        ; if CmdTailLen is odd: bx++ (shift one more)
-        test bx, 01h
-        jz EvenLen
-        inc bx
-    EvenLen:
-                        ; no need to div by 2, as there are 2 bytes in vram
-		sub di, bx		; di = center - shift
-
-;//------------------------------------------------------------------------------------------
-; load the text
-
-        ; 2nd ax byte = color in vram
-		mov ah, (BRT_RED_CLR or BLINKING)
-
-    LoadString:
-
-        lodsb
-        stosw
-
-        loop LoadString
-
-    LoadLineEnd:
-
+        pop di
+        call DrawFrameBackground
 ; end program
+
 		mov ax, 4c00h	; exit(0)
 		int 21h			; int for DOS func call
 
-;//------------------------------------------------------------------------------------------
+;//==========================================================================================
 
 ; function should get di:
 ; di = position in vram in the center of the DOS screen, where frame should start
@@ -96,12 +60,12 @@ Start:
 
 DrawFrame:
 
-    ; 2nd ax byte = color in vram
-    mov ah, FRAME_COLOR
-
     ; move to the left side (a half of frame width)
     ; not div 2, because 1 symbol = 2 bytes in vram
     sub di, FRAME_WIDTH
+
+    ; 2nd ax byte = color in vram
+    mov ah, FRAME_COLOR
 
     mov al, LU_CORNER
     stosw
@@ -136,6 +100,39 @@ DrawFrame:
 
 ;//------------------------------------------------------------------------------------------
 
+DrawFrameBackground:
+
+    ; move to the left side (a half of frame width)
+    ; not div 2, because 1 symbol = 2 bytes in vram
+    sub di, FRAME_WIDTH
+
+    ; si = iterator for lines
+    mov si, FRAME_HEIGHT
+
+DrawBkgndLoop:
+
+    ; cx = iterator for columns
+    mov cx, FRAME_WIDTH
+
+    DrawBkgndLineLoop:
+
+        and byte ptr es:[di + 1], 0afh
+        or  byte ptr es:[di + 1], BKGND_COLOR
+
+        add di, 2
+
+    loop DrawBkgndLineLoop
+
+    add di, (2 * (SCREEN_WIDTH - FRAME_WIDTH))
+
+    dec si
+    cmp si, 0
+    jnz DrawBkgndLoop
+
+    ret
+
+;//------------------------------------------------------------------------------------------
+
 DrawHorizontalLine:
 
     ; 1st ax byte = symbol
@@ -161,6 +158,56 @@ DrawVerticalLine:
 
     ret
 
+;//==========================================================================================
+
+PrintCmdLine:
+
+; get cmd line
+
+        ; CX = CmdTailLen - 1 (for the last \r)
+        mov si, 80h
+        mov byte ptr cl, [si]
+
+        ; if CmdTailLen == 0 -> jump to the end
+        jcxz PrintCmdLineEnd
+
+        dec cx
+
+        ; SI = &CmdTail
+        mov si, 82h
+
 ;//------------------------------------------------------------------------------------------
+; center the text
+
+        ; BX = shift to the left
+        ; BX = StringLen
+        mov bx, cx
+
+        ; if CmdTailLen is odd: bx++ (shift one more)
+        test bx, 01h
+        jz EvenLen
+        inc bx
+    EvenLen:
+                        ; no need to div by 2, as there are 2 bytes in vram
+		sub di, bx		; di = center - shift
+
+;//------------------------------------------------------------------------------------------
+; load the text
+
+        ; 2nd ax byte = color in vram
+        mov ah, (BRT_RED_CLR or BLINKING)
+
+    LoadString:
+
+        lodsb
+        stosw
+
+        loop LoadString
+
+    PrintCmdLineEnd:
+
+    ret
+
+;//==========================================================================================
 
 end		Start
