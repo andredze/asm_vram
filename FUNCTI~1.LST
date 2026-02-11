@@ -1,0 +1,238 @@
+Turbo Assembler	 Version 4.1	    02/11/26 22:26:59	    Page 1
+functi~1.asm
+
+
+
+      1	0000			     .model tiny
+      2	0000			     .code
+      3
+      4				     org 100h
+      5
+      6				     ;//------------------------------------------------------------------------------------------
+      7
+      8	      =0050		     SCREEN_WIDTH    equ 80
+      9	      =B800		     VIDEO_SEG		 equ 0b800h
+     10
+     11	      =0005		     FRAME_START_LINE equ 5
+     12
+     13	      =000F		     FRAME_COLOR	     equ 0Fh
+     14	      =0028		     FRAME_WIDTH	     equ 40
+     15	      =0007		     FRAME_HEIGHT    equ 7
+     16
+     17	      =00CD		     HORIZ_LINE		 equ 0cdh
+     18	      =00BA		     VERT_LINE		 equ 0bah
+     19	      =00C9		     LU_CORNER		 equ 0c9h
+     20	      =00BB		     RU_CORNER		 equ 0bbh
+     21	      =00C8		     LD_CORNER		 equ 0c8h
+     22	      =00BC		     RD_CORNER		 equ 0bch
+     23
+     24	      =000C		     BRT_RED_CLR	 equ 0ch
+     25	      =0080		     BLINKING		 equ 80h
+     26
+     27				     ;//------------------------------------------------------------------------------------------
+     28
+     29	0100			     Start:
+     30	0100  B8 B800				     mov ax, VIDEO_SEG				     ; b800h - segment of vram
+     31	0103  8E C0				     mov es, ax						     ; es - extended segment
+     32
+     33					     ; di = (center of start line)
+     34	0105  BF 0370				     mov di, (2	* SCREEN_WIDTH * FRAME_START_LINE + SCREEN_WIDTH)
+     35
+     36	0108  57			     push di
+     37	0109  E8 0026			     call DrawFrame
+     38	010C  5F			     pop di
+     39
+     40					 ; //TODO - move to the	center of the frame
+     41	010D  81 C7 00A0			     add di, (2	* 80)	; newline
+     42
+     43				     ;//------------------------------------------------------------------------------------------
+     44					 ; get cmd line
+     45
+     46					     ; CX = CmdTailLen - 1 (for	the last \r)
+     47	0111  BE 0080			     mov si, 80h
+     48	0114  8A 0C			     mov byte ptr cl, [si]
+     49
+     50				     ;	  //FIXME - check input	with ' ', nothing, etc.
+     51					     ; if CmdTailLen ==	0 -> jump to the end
+     52	0116  E3 15			     jcxz LoadLineEnd
+     53
+     54	0118  49			     dec cx
+     55
+     56					     ; SI = &CmdTail
+     57	0119  BE 0082			     mov si, 82h
+Turbo Assembler	 Version 4.1	    02/11/26 22:26:59	    Page 2
+functi~1.asm
+
+
+
+     58
+     59				     ;//------------------------------------------------------------------------------------------
+     60
+     61					 ; center the text
+     62
+     63					     ; BX = shift to the left
+     64					     ; BX = StringLen
+     65	011C  8B D9			     mov bx, cx
+     66
+     67					     ; if CmdTailLen is	odd: bx++ (shift one more)
+     68	011E  F7 C3 0001		     test bx, 01h
+     69	0122  74 01			     jz	EvenLen
+     70	0124  43			     inc bx
+     71	0125				 EvenLen:
+     72							     ; no need to div by 2, as there are 2 bytes in vram
+     73	0125  2B FB				     sub di, bx		     ; di = center - shift
+     74
+     75				     ;//------------------------------------------------------------------------------------------
+     76
+     77					 ; load	the text
+     78
+     79					     ; 2nd ax byte = color in vram
+     80	0127  B4 8C				     mov ah, (BRT_RED_CLR or BLINKING)
+     81
+     82	0129				 LoadString:
+     83
+     84	0129  AC			     lodsb
+     85	012A  AB			     stosw
+     86
+     87	012B  E2 FC			     loop LoadString
+     88
+     89	012D				 LoadLineEnd:
+     90
+     91				     ;	     end program
+     92	012D  B8 4C00				     mov ax, 4c00h   ; exit(0)
+     93	0130  CD 21				     int 21h		     ; int for DOS func	call
+     94
+     95				     ;//------------------------------------------------------------------------------------------
+     96
+     97				     ; function	should get di:
+     98				     ; di = position in	vram in	the center of the DOS screen, where frame should start
+     99				     ; ax, cx, di doesn't save their values
+    100
+    101	0132			     DrawFrame:
+    102
+    103					 ; 2nd ax byte = color in vram
+    104	0132  B4 0F			 mov ah, FRAME_COLOR
+    105
+    106					 ; move	to the left side (a half of frame width)
+    107					 ; not div 2, because 1	symbol = 2 bytes in vram
+    108	0134  83 EF 28			 sub di, FRAME_WIDTH
+    109
+    110	0137  B0 C9			 mov al, LU_CORNER
+    111	0139  AB			 stosw
+    112
+    113	013A  E8 001A			 call DrawHorizontalLine
+    114
+Turbo Assembler	 Version 4.1	    02/11/26 22:26:59	    Page 3
+functi~1.asm
+
+
+
+    115	013D  B0 BB			 mov al, RU_CORNER
+    116	013F  AB			 stosw
+    117
+    118					 ; move	back to	the left side
+    119					 ; and go to newline to	skip corner
+    120	0140  83 C7 50			 add di, (-FRAME_WIDTH * 2 + SCREEN_WIDTH * 2)
+    121
+    122	0143  E8 0019			 call DrawVerticalLine
+    123
+    124	0146  B0 C8			 mov al, LD_CORNER
+    125	0148  AB			 stosw
+    126
+    127	0149  E8 000B			 call DrawHorizontalLine
+    128
+    129	014C  B0 BC			 mov al, RD_CORNER
+    130	014E  AB			 stosw
+    131
+    132					 ; +2 to get in	front of the corner
+    133					 ; move	up below the right corner
+    134					 ; -2 of height	to skip	the upper corner
+    135	014F  81 EF 0322		 sub di, (2 + SCREEN_WIDTH * 2 * (FRAME_HEIGHT - 2))
+    136
+    137	0153  E8 0009			 call DrawVerticalLine
+    138
+    139	0156  C3			 ret
+    140
+    141				     ;//------------------------------------------------------------------------------------------
+    142
+    143	0157			     DrawHorizontalLine:
+    144
+    145					 ; 1st ax byte = symbol
+    146	0157  B0 CD			 mov al, HORIZ_LINE
+    147	0159  B9 0026			 mov cx, (FRAME_WIDTH -	2)
+    148	015C  F3> AB			 rep stosw
+    149
+    150	015E  C3			 ret
+    151
+    152				     ;//------------------------------------------------------------------------------------------
+    153
+    154	015F			     DrawVerticalLine:
+    155
+    156					 ; 1st ax byte = symbol
+    157	015F  B0 BA			 mov al, VERT_LINE
+    158	0161  B9 0005			 mov cx, (FRAME_HEIGHT - 2)
+    159
+    160	0164				 VerticalLineLoop:
+    161	0164  26: 89 05			 mov es:[di], ax
+    162	0167  81 C7 00A0		 add di, (SCREEN_WIDTH * 2)
+    163
+    164	016B  E2 F7			 loop VerticalLineLoop
+    165
+    166	016D  C3			 ret
+    167
+    168				     ;//------------------------------------------------------------------------------------------
+    169
+    170				     end	     Start
+Turbo Assembler	 Version 4.1	    02/11/26 22:26:59	    Page 4
+Symbol Table
+
+
+
+
+Symbol Name			  Type	 Value
+
+??DATE				  Text	 "02/11/26"
+??FILENAME			  Text	 "functi~1"
+??TIME				  Text	 "22:26:59"
+??VERSION			  Number 040A
+@32BIT				  Text	 0
+@CODE				  Text	 DGROUP
+@CODESIZE			  Text	 0
+@CPU				  Text	 0101H
+@CURSEG				  Text	 _TEXT
+@DATA				  Text	 DGROUP
+@DATASIZE			  Text	 0
+@FILENAME			  Text	 FUNCTI~1
+@INTERFACE			  Text	 000H
+@MODEL				  Text	 1
+@STACK				  Text	 DGROUP
+@WORDSIZE			  Text	 2
+BLINKING			  Number 0080
+BRT_RED_CLR			  Number 000C
+DRAWFRAME			  Near	 DGROUP:0132
+DRAWHORIZONTALLINE		  Near	 DGROUP:0157
+DRAWVERTICALLINE		  Near	 DGROUP:015F
+EVENLEN				  Near	 DGROUP:0125
+FRAME_COLOR			  Number 000F
+FRAME_HEIGHT			  Number 0007
+FRAME_START_LINE		  Number 0005
+FRAME_WIDTH			  Number 0028
+HORIZ_LINE			  Number 00CD
+LD_CORNER			  Number 00C8
+LOADLINEEND			  Near	 DGROUP:012D
+LOADSTRING			  Near	 DGROUP:0129
+LU_CORNER			  Number 00C9
+RD_CORNER			  Number 00BC
+RU_CORNER			  Number 00BB
+SCREEN_WIDTH			  Number 0050
+START				  Near	 DGROUP:0100
+VERTICALLINELOOP		  Near	 DGROUP:0164
+VERT_LINE			  Number 00BA
+VIDEO_SEG			  Number B800
+
+Groups & Segments		  Bit Size Align  Combine Class
+
+DGROUP				  Group
+  _DATA				  16  0000 Word	  Public  DATA
+  _TEXT				  16  016E Word	  Public  CODE
+

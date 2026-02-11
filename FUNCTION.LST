@@ -1,0 +1,190 @@
+Turbo Assembler	 Version 4.1	    02/11/26 21:25:22	    Page 1
+function.asm
+
+
+
+      1	0000			     .model tiny
+      2	0000			     .code
+      3
+      4				     org 100h
+      5
+      6				     ;//------------------------------------------------------------------------------------------
+      7
+      8	      =0050		     SCREEN_WIDTH    equ 80
+      9	      =B800		     VIDEO_SEG		 equ 0b800h
+     10
+     11	      =000F		     FRAME_COLOR	     equ 0Fh
+     12	      =0028		     FRAME_WIDTH	     equ 40
+     13	      =0005		     FRAME_HEIGHT    equ 5
+     14
+     15	      =00CD		     HORIZ_LINE		 equ 0cdh
+     16	      =00BA		     VERT_LINE		 equ 0bah
+     17	      =00C9		     LU_CORNER		 equ 0c9h
+     18	      =00BB		     RU_CORNER		 equ 0bbh
+     19	      =00C8		     LD_CORNER		 equ 0c8h
+     20	      =00BC		     RD_CORNER		 equ 0bch
+     21
+     22	      =000C		     BRT_RED_CLR	 equ 0ch
+     23	      =0080		     BLINKING		 equ 80h
+     24
+     25				     ;//------------------------------------------------------------------------------------------
+     26
+     27	0100			     Start:
+     28				     ;	     go	to the segment
+     29	0100  B8 B800				     mov ax, VIDEO_SEG				     ; b800h - segment of vram
+     30	0103  8E C0				     mov es, ax						     ; es - extended segment
+     31
+     32				     ;//------------------------------------------------------------------------------------------
+     33
+     34				     ;	     center the	first line
+     35	0105  BB 0370				     mov bx, (2	* 80 * 5 + 2 * 40)   ; bx = (center of 5th line)
+     36
+     37	0108  E8 0033			     call DrawCorners
+     38	010B  E8 0021			     call DrawHorizontalLine
+     39
+     40	010E  81 C3 00A0			     add bx, (2	* 80)	; newline
+     41
+     42	0112  BF 0080			     mov di, 80h
+     43	0115  8A 0D			     mov byte ptr cl, [di]
+     44	0117  49			     dec cx  ; for the last \r
+     45
+     46	0118  BE 0082			     mov si, 82h
+     47	011B  8B FB			     mov di, bx
+     48
+     49	011D  B4 0F			     mov ah, FRAME_COLOR
+     50
+     51	011F				 LoadString:
+     52
+     53	011F  AC			     lodsb
+     54	0120  AB			     stosw
+     55
+     56	0121  E2 FC			     loop LoadString
+     57
+Turbo Assembler	 Version 4.1	    02/11/26 21:25:22	    Page 2
+function.asm
+
+
+
+     58	0123  81 C3 00A0			     add bx, (2	* 80)	; newline
+     59
+     60	0127  E8 0005			     call DrawHorizontalLine
+     61
+     62				     ;	     end program
+     63	012A  B8 4C00				     mov ax, 4c00h   ; exit(0)
+     64	012D  CD 21				     int 21h		     ; int for DOS func	call
+     65
+     66				     ;//------------------------------------------------------------------------------------------
+     67
+     68				     ; function	should get bx -	position in vram in the	center of the DOS screen
+     69				     ; bx doesn't get changed
+     70				     ; ax, cx, di doesn't save their values
+     71
+     72	012F			     DrawHorizontalLine:
+     73
+     74	012F  8B FB			 mov di, bx
+     75
+     76					 ; move	left from the center by	a half of frame	width
+     77					 ; (not	dividing by 2 as 1 symbol = 2 bytes)
+     78	0131  83 EF 28			 sub di, FRAME_WIDTH
+     79
+     80					 ; 1st ax byte = symbol
+     81	0134  B0 CD			 mov al, HORIZ_LINE
+     82					 ; 2nd ax byte = color
+     83	0136  B4 0F			 mov ah, FRAME_COLOR
+     84
+     85	0138  B9 0028			 mov cx, FRAME_WIDTH
+     86	013B  F3> AB			 rep stosw
+     87
+     88	013D  C3			 ret
+     89
+     90				     ;//------------------------------------------------------------------------------------------
+     91
+     92				     ; function	should get bx -	position in vram in the	center
+     93				     ; of the DOS screen of first frame	line
+     94				     ; bx doesn't get changed
+     95				     ; ax, cx, di doesn't save their values
+     96
+     97	013E			     DrawCorners:
+     98
+     99	013E  8B FB			 mov di, bx
+    100
+    101					 ; 2nd ax byte = color
+    102	0140  B4 0F			 mov ah, FRAME_COLOR
+    103
+    104					 ; move	to the left side
+    105	0142  83 EF 2A			 sub di, (FRAME_WIDTH +	2)
+    106	0145  B0 C9			 mov al, LU_CORNER
+    107	0147  AB			 stosw
+    108
+    109					 ; move	to the lower corner
+    110					 ; (-2)	for the	shift after the	first op
+    111	0148  81 C7 03BE		 add di, (SCREEN_WIDTH * 2 * (FRAME_HEIGHT + 1)	- 2)
+    112	014C  B0 C8			 mov al, LD_CORNER
+    113	014E  AB			 stosw
+    114
+Turbo Assembler	 Version 4.1	    02/11/26 21:25:22	    Page 3
+function.asm
+
+
+
+    115	014F  83 C7 50			 add di, (FRAME_WIDTH *	2)
+    116	0152  B0 BC			 mov al, RD_CORNER
+    117	0154  AB			 stosw
+    118
+    119	0155  81 EF 03C2		 sub di, (2 + SCREEN_WIDTH * 2 * (FRAME_HEIGHT + 1))
+    120	0159  B0 BB			 mov al, RU_CORNER
+    121	015B  AB			 stosw
+    122
+    123	015C  C3			 ret
+    124
+    125				     ;//------------------------------------------------------------------------------------------
+    126
+    127				     end	     Start
+Turbo Assembler	 Version 4.1	    02/11/26 21:25:22	    Page 4
+Symbol Table
+
+
+
+
+Symbol Name			  Type	 Value
+
+??DATE				  Text	 "02/11/26"
+??FILENAME			  Text	 "function"
+??TIME				  Text	 "21:25:22"
+??VERSION			  Number 040A
+@32BIT				  Text	 0
+@CODE				  Text	 DGROUP
+@CODESIZE			  Text	 0
+@CPU				  Text	 0101H
+@CURSEG				  Text	 _TEXT
+@DATA				  Text	 DGROUP
+@DATASIZE			  Text	 0
+@FILENAME			  Text	 FUNCTION
+@INTERFACE			  Text	 000H
+@MODEL				  Text	 1
+@STACK				  Text	 DGROUP
+@WORDSIZE			  Text	 2
+BLINKING			  Number 0080
+BRT_RED_CLR			  Number 000C
+DRAWCORNERS			  Near	 DGROUP:013E
+DRAWHORIZONTALLINE		  Near	 DGROUP:012F
+FRAME_COLOR			  Number 000F
+FRAME_HEIGHT			  Number 0005
+FRAME_WIDTH			  Number 0028
+HORIZ_LINE			  Number 00CD
+LD_CORNER			  Number 00C8
+LOADSTRING			  Near	 DGROUP:011F
+LU_CORNER			  Number 00C9
+RD_CORNER			  Number 00BC
+RU_CORNER			  Number 00BB
+SCREEN_WIDTH			  Number 0050
+START				  Near	 DGROUP:0100
+VERT_LINE			  Number 00BA
+VIDEO_SEG			  Number B800
+
+Groups & Segments		  Bit Size Align  Combine Class
+
+DGROUP				  Group
+  _DATA				  16  0000 Word	  Public  DATA
+  _TEXT				  16  015D Word	  Public  CODE
+

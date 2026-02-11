@@ -1,4 +1,4 @@
-Turbo Assembler	 Version 4.1	    02/11/26 11:10:51	    Page 1
+Turbo Assembler	 Version 4.1	    02/11/26 20:40:22	    Page 1
 frame.asm
 
 
@@ -60,7 +60,7 @@ frame.asm
      55	0124  26: 89 07				     mov es:[bx], ax
      56	0127  83 C3 02				     add bx, 2
      57
-Turbo Assembler	 Version 4.1	    02/11/26 11:10:51	    Page 2
+Turbo Assembler	 Version 4.1	    02/11/26 20:40:22	    Page 2
 frame.asm
 
 
@@ -109,78 +109,77 @@ frame.asm
      99
     100				     ;	     print the text
     101
-    102	0153  E3 12				     jcxz PRINT_LINE_END
+    102	0153  E3 0F				     jcxz PRINT_LINE_END
     103
-    104	0155			     PRINT_LINE_LOOP:
-    105	0155  8A 05				     mov al, [di]
-    106
-    107						     ; put symbol in first byte
-    108						     ; put color in second byte
-    109
-    110	0157  26: 88 07				     mov byte ptr es:[bx], al
-    111	015A  26: C6 47	01 8C			     mov byte ptr es:[bx + 01],	(BRT_RED_CLR or	BLINKING)
-    112						     ; brt red with blinking
-    113
-    114	015F  83 C3 02				     add bx, 2		     ; go to the next symbol in	vram
-Turbo Assembler	 Version 4.1	    02/11/26 11:10:51	    Page 3
+    104	0155  B4 8C				     mov ah, (BRT_RED_CLR or BLINKING) ; color in the second byte
+    105
+    106	0157			     PRINT_LINE_LOOP:
+    107	0157  8A 05				     mov al, [di]
+    108
+    109						     ; put symbol in first byte
+    110						     ; put color in second byte
+    111	0159  26: 89 07				     mov es:[bx], ax
+    112
+    113	015C  83 C3 02				     add bx, 2		     ; go to the next symbol in	vram
+    114	015F  83 C7 01				     add di, 1		     ; get next	symbol
+Turbo Assembler	 Version 4.1	    02/11/26 20:40:22	    Page 3
 frame.asm
 
 
 
-    115	0162  83 C7 01				     add di, 1		     ; get next	symbol
-    116
-    117	0165  E2 EE				     loop PRINT_LINE_LOOP    ; jmp back	if cx is not 0
-    118
-    119	0167			     PRINT_LINE_END:
-    120
-    121				     ;//------------------------------------------------------------------------------------------
-    122
-    123				     ;	     move to the center	for the	second frame line
-    124
-    125	0167  03 DE				     add bx, si
-    126	0169  BF 0080				     mov di, 80h
-    127	016C  8A 0D				     mov byte ptr cl, [di]
-    128	016E  D1 E1				     shl cx, 1
-    129	0170  2B D9				     sub bx, cx
-    130	0172  83 C3 02				     add bx, 2
-    131
-    132				     ;//------------------------------------------------------------------------------------------
-    133
-    134				     ;	     DRAW the second line
-    135
-    136	0175  83 C3 78				     add bx, 80	* 2 - FRAME_WIDTH	     ; TODO: * amount of \n
-    137
-    138	0178  33 C9				     xor cx, cx
-    139	017A  B9 0026				     mov cx, FRAME_WIDTH - 2			     ; -2 for corners
-    140
-    141	017D  B4 0F				     mov ah, FRAME_COLOR
-    142
-    143	017F  B0 C8				     mov al, LDCORNER
-    144	0181  26: 89 07				     mov es:[bx], ax
-    145	0184  83 C3 02				     add bx, 2
-    146
-    147	0187  B0 CD				     mov al, HORIZ_LINE
-    148
-    149						     ; DRAW horizontal line
-    150
-    151	0189			     L_HORIZ_END:
-    152	0189  26: 89 07				     mov es:[bx], ax
-    153	018C  83 C3 02				     add bx, 2
-    154
-    155	018F  E2 F8				     loop L_HORIZ_END
-    156
-    157	0191  B0 BC				     mov al, RDCORNER
-    158	0193  26: 89 07				     mov es:[bx], ax
-    159	0196  83 C3 02				     add bx, 2
-    160
-    161				     ;//------------------------------------------------------------------------------------------
-    162
-    163				     ;	     end program
-    164	0199  B8 4C00				     mov ax, 4c00h   ; exit(0)
-    165	019C  CD 21				     int 21h		     ; int for DOS func	call
-    166
-    167				     end	     Start
-Turbo Assembler	 Version 4.1	    02/11/26 11:10:51	    Page 4
+    115
+    116	0162  E2 F3				     loop PRINT_LINE_LOOP    ; jmp back	if cx is not 0
+    117
+    118	0164			     PRINT_LINE_END:
+    119
+    120				     ;//------------------------------------------------------------------------------------------
+    121
+    122				     ;	     move to the center	for the	second frame line
+    123
+    124	0164  03 DE				     add bx, si
+    125	0166  BF 0080				     mov di, 80h
+    126	0169  8A 0D				     mov byte ptr cl, [di]
+    127	016B  D1 E1				     shl cx, 1
+    128	016D  2B D9				     sub bx, cx
+    129	016F  83 C3 02				     add bx, 2
+    130
+    131				     ;//------------------------------------------------------------------------------------------
+    132
+    133				     ;	     DRAW the second line
+    134
+    135	0172  83 C3 78				     add bx, 80	* 2 - FRAME_WIDTH	     ; TODO: * amount of \n
+    136
+    137	0175  33 C9				     xor cx, cx
+    138	0177  B9 0026				     mov cx, FRAME_WIDTH - 2			     ; -2 for corners
+    139
+    140	017A  B4 0F				     mov ah, FRAME_COLOR
+    141
+    142	017C  B0 C8				     mov al, LDCORNER
+    143	017E  26: 89 07				     mov es:[bx], ax
+    144	0181  83 C3 02				     add bx, 2
+    145
+    146	0184  B0 CD				     mov al, HORIZ_LINE
+    147
+    148						     ; DRAW horizontal line
+    149
+    150	0186			     L_HORIZ_END:
+    151	0186  26: 89 07				     mov es:[bx], ax
+    152	0189  83 C3 02				     add bx, 2
+    153
+    154	018C  E2 F8				     loop L_HORIZ_END
+    155
+    156	018E  B0 BC				     mov al, RDCORNER
+    157	0190  26: 89 07				     mov es:[bx], ax
+    158	0193  83 C3 02				     add bx, 2
+    159
+    160				     ;//------------------------------------------------------------------------------------------
+    161
+    162				     ;	     end program
+    163	0196  B8 4C00				     mov ax, 4c00h   ; exit(0)
+    164	0199  CD 21				     int 21h		     ; int for DOS func	call
+    165
+    166				     end	     Start
+Turbo Assembler	 Version 4.1	    02/11/26 20:40:22	    Page 4
 Symbol Table
 
 
@@ -190,7 +189,7 @@ Symbol Name			  Type	 Value
 
 ??DATE				  Text	 "02/11/26"
 ??FILENAME			  Text	 "frame	  "
-??TIME				  Text	 "11:10:51"
+??TIME				  Text	 "20:40:22"
 ??VERSION			  Number 040A
 @32BIT				  Text	 0
 @CODE				  Text	 DGROUP
@@ -213,10 +212,10 @@ FRAME_WIDTH			  Number 0028
 HORIZ_LINE			  Number 00CD
 LDCORNER			  Number 00C8
 LUCORNER			  Number 00C9
-L_HORIZ_END			  Near	 DGROUP:0189
+L_HORIZ_END			  Near	 DGROUP:0186
 L_HORIZ_START			  Near	 DGROUP:011A
-PRINT_LINE_END			  Near	 DGROUP:0167
-PRINT_LINE_LOOP			  Near	 DGROUP:0155
+PRINT_LINE_END			  Near	 DGROUP:0164
+PRINT_LINE_LOOP			  Near	 DGROUP:0157
 RDCORNER			  Number 00BC
 RUCORNER			  Number 00BB
 START				  Near	 DGROUP:0100
@@ -227,5 +226,5 @@ Groups & Segments		  Bit Size Align  Combine Class
 
 DGROUP				  Group
   _DATA				  16  0000 Word	  Public  DATA
-  _TEXT				  16  019E Word	  Public  CODE
+  _TEXT				  16  019B Word	  Public  CODE
 

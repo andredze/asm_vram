@@ -98,15 +98,14 @@ EVEN_NUMBER:
 
 		jcxz PRINT_LINE_END
 
+		mov ah, (BRT_RED_CLR or BLINKING) ; color in the second byte
+
 PRINT_LINE_LOOP:
 		mov al, [di]
 
 		; put symbol in first byte
 		; put color in second byte
-
-		mov byte ptr es:[bx], al
-		mov byte ptr es:[bx + 01], (BRT_RED_CLR or BLINKING)
-		; brt red with blinking
+		mov es:[bx], ax
 
 		add bx, 2		; go to the next symbol in vram
 		add di, 1		; get next symbol
