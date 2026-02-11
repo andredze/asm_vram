@@ -12,7 +12,7 @@ FRAME_START_LINE equ 5
 
 FRAME_COLOR		equ 0Fh
 FRAME_WIDTH		equ 40
-FRAME_HEIGHT 	equ 7
+FRAME_HEIGHT 	equ 6
 
 HORIZ_LINE	    equ 0cdh
 VERT_LINE	    equ 0bah
@@ -37,8 +37,7 @@ Start:
         call DrawFrame
         pop di
 
-    ; //TODO - move to the center of the frame
-		add di, (2 * 80)   ; newline
+		add di, (2 * SCREEN_WIDTH * ((FRAME_HEIGHT - 1) / 2))   ; newline
 
 ;//------------------------------------------------------------------------------------------
 ; get cmd line
