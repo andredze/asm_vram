@@ -1,4 +1,4 @@
-Turbo Assembler	 Version 4.1	    02/11/26 01:54:24	    Page 1
+Turbo Assembler	 Version 4.1	    02/11/26 10:09:44	    Page 1
 frame.asm
 
 
@@ -29,83 +29,108 @@ frame.asm
      24	0103  8E C0				     mov es, ax						     ; es - extended segment
      25	0105  BB 0370				     mov bx, (2	* 80 * 5 + 2 * 40)   ; bx = (center of 5th line)
      26
-     27				     ;//———————————————————————————————
-     28				     ————————————————————————————————
-     29				     ———————————————————————————
-     30
-     31	0108  83 EB 28				     sub bx, FRAME_WIDTH	     ; center the frame
-     32	010B  B9 0028				     mov cx, FRAME_WIDTH
-     33
-     34	010E  B4 0F				     mov ah, FRAME_COLOR
-     35	0110  B0 CD				     mov al, HORIZ_LINE
+     27				     ;//??????????????????????????????????????????????????????????????????????????????????????????
+     28
+     29	0108  83 EB 28				     sub bx, FRAME_WIDTH	     ; center the frame
+     30	010B  B9 0028				     mov cx, FRAME_WIDTH
+     31
+     32	010E  B4 0F				     mov ah, FRAME_COLOR
+     33	0110  B0 CD				     mov al, HORIZ_LINE
+     34
+     35						     ; DRAW horizontal line
      36
-     37						     ; DRAW horizontal line
-     38
-     39	0112			     L_HORIZ_START:
-     40	0112  26: 89 07				     mov es:[bx], ax
-     41	0115  83 C3 02				     add bx, 2
+     37	0112			     L_HORIZ_START:
+     38	0112  26: 89 07				     mov es:[bx], ax
+     39	0115  83 C3 02				     add bx, 2
+     40
+     41	0118  E2 F8				     loop L_HORIZ_START
      42
-     43	0118  E2 F8				     loop L_HORIZ_START
+     43				     ;//??????????????????????????????????????????????????????????????????????????????????????????
      44
-     45				     ;//———————————————————————————————
-     46				     ————————————————————————————————
-     47				     ———————————————————————————
-     48
-     49	011A  83 EB 28				     sub bx, FRAME_WIDTH
-     50	011D  83 C3 50				     add bx, 40	* 2
-     51
-     52	0120  BE 0080				     mov si, 80h
-     53	0123  8A 0C				     mov byte ptr cl, [si]   ; CX = CmdTailLen (-1 for \r)
-     54	0125  83 E9 01				     sub cx, 1
-     55	0128  BF 0082				     mov di, 82h	     ; DI = &CmdTail
-     56
-     57	012B  8B F1				     mov si, cx		     ; si = CmdTailLen
-Turbo Assembler	 Version 4.1	    02/11/26 01:54:24	    Page 2
+     45	011A  83 EB 28				     sub bx, FRAME_WIDTH
+     46	011D  81 C3 00A0			     add bx, 80	* 2		     ; TODO: * amount of \n
+     47
+     48	0121  BE 0080				     mov si, 80h
+     49	0124  8A 0C				     mov byte ptr cl, [si]   ; CX = CmdTailLen (-1 for \r)
+     50	0126  83 E9 01				     sub cx, 1
+     51	0129  BF 0082				     mov di, 82h	     ; DI = &CmdTail
+     52
+     53	012C  8B F1				     mov si, cx		     ; si = CmdTailLen
+     54
+     55				     ;//------------------------------------------------------------------------------------------
+     56						     ; if CmdTailLen is	odd
+     57	012E  F7 C6 0001			     test si, 01h
+Turbo Assembler	 Version 4.1	    02/11/26 10:09:44	    Page 2
 frame.asm
 
 
 
      58
-     59				     ;//------------------------------------------------------------------------------------------
-     60						     ; if CmdTailLen is	odd
-     61	012D  F7 C6 0001			     test si, 01h
-     62
-     63	0131  74 01				     jz	EVEN_NUMBER
-     64	0133  46				     inc si		     ; if the number is	odd -> move 1 byte more	left
-     65	0134			     EVEN_NUMBER:
-     66				     ;//------------------------------------------------------------------------------------------
+     59	0132  74 01				     jz	EVEN_NUMBER
+     60	0134  46				     inc si		     ; if the number is	odd -> move 1 byte more	left
+     61	0135			     EVEN_NUMBER:
+     62				     ;//------------------------------------------------------------------------------------------
+     63
+     64										     ; no need to div by 2, as there are 2 bytes in +
+     65				     vram
+     66	0135  2B DE				     sub bx, si		     ; center the CmdLine
      67
-     68										     ; no need to div by 2, as there are 2 bytes in +
-     69				     vram
-     70	0134  2B DE				     sub bx, si		     ; center the CmdLine
+     68	0137  E3 12				     jcxz PRINT_LINE_END
+     69	0139			     PRINT_LINE_LOOP:
+     70	0139  8A 05				     mov al, [di]
      71
-     72	0136  E3 12				     jcxz PRINT_LINE_END
-     73	0138			     PRINT_LINE_LOOP:
-     74	0138  8A 05				     mov al, [di]
-     75
-     76						     ; put symbol in first byte
-     77						     ; put color in second byte
+     72						     ; put symbol in first byte
+     73						     ; put color in second byte
+     74
+     75	013B  26: 88 07				     mov byte ptr es:[bx], al
+     76	013E  26: C6 47	01 8C			     mov byte ptr es:[bx + 01],	(BRT_RED_CLR or	BLINKING)
+     77						     ; brt red with blinking
      78
-     79	013A  26: 88 07				     mov byte ptr es:[bx], al
-     80	013D  26: C6 47	01 8C			     mov byte ptr es:[bx + 01],	(BRT_RED_CLR or	BLINKING)
-     81						     ; brt red with blinking
-     82
-     83	0142  83 C3 02				     add bx, 2		     ; go to the next symbol in	vram
-     84	0145  83 C7 01				     add di, 1		     ; get next	symbol
+     79	0143  83 C3 02				     add bx, 2		     ; go to the next symbol in	vram
+     80	0146  83 C7 01				     add di, 1		     ; get next	symbol
+     81
+     82	0149  E2 EE				     loop PRINT_LINE_LOOP    ; jmp back	if cx is not 0
+     83
+     84	014B			     PRINT_LINE_END:
      85
-     86	0148  E2 EE				     loop PRINT_LINE_LOOP    ; jmp back	if cx is not 0
+     86				     ;//------------------------------------------------------------------------------------------
      87
-     88	014A			     PRINT_LINE_END:
-     89
-     90				     ;//———————————————————————————————
-     91				     ————————————————————————————————
-     92				     ———————————————————————————
-     93
-     94	014A  B8 4C00				     mov ax, 4c00h   ; exit(0)
-     95	014D  CD 21				     int 21h		     ; int for DOS func	call
-     96
-     97				     end	     Start
-Turbo Assembler	 Version 4.1	    02/11/26 01:54:24	    Page 3
+     88						     ; move to the center
+     89	014B  03 DE				     add bx, si
+     90	014D  BF 0080				     mov di, 80h
+     91	0150  8A 0D				     mov byte ptr cl, [di]
+     92	0152  D1 E1				     shl cx, 1
+     93	0154  2B D9				     sub bx, cx
+     94	0156  83 C3 02				     add bx, 2
+     95
+     96	0159  83 C3 78				     add bx, 80	* 2 - FRAME_WIDTH	     ; TODO: * amount of \n
+     97
+     98	015C  33 C9				     xor cx, cx
+     99	015E  B9 0028				     mov cx, FRAME_WIDTH
+    100
+    101	0161  B4 0F				     mov ah, FRAME_COLOR
+    102	0163  B0 CD				     mov al, HORIZ_LINE
+    103
+    104						     ; DRAW horizontal line
+    105
+    106	0165			     L_HORIZ_END:
+    107	0165  26: 89 07				     mov es:[bx], ax
+    108	0168  83 C3 02				     add bx, 2
+    109
+    110	016B  E2 F8				     loop L_HORIZ_END
+    111
+    112				     ;//??????????????????????????????????????????????????????????????????????????????????????????
+    113
+    114	016D  B8 4C00				     mov ax, 4c00h   ; exit(0)
+Turbo Assembler	 Version 4.1	    02/11/26 10:09:44	    Page 3
+frame.asm
+
+
+
+    115	0170  CD 21				     int 21h		     ; int for DOS func	call
+    116
+    117				     end	     Start
+Turbo Assembler	 Version 4.1	    02/11/26 10:09:44	    Page 4
 Symbol Table
 
 
@@ -115,7 +140,7 @@ Symbol Name			  Type	 Value
 
 ??DATE				  Text	 "02/11/26"
 ??FILENAME			  Text	 "frame	  "
-??TIME				  Text	 "01:54:24"
+??TIME				  Text	 "10:09:44"
 ??VERSION			  Number 040A
 @32BIT				  Text	 0
 @CODE				  Text	 DGROUP
@@ -132,14 +157,15 @@ Symbol Name			  Type	 Value
 BLINKING			  Number 0080
 BRT_RED_CLR			  Number 000C
 CORNER				  Number 00C9
-EVEN_NUMBER			  Near	 DGROUP:0134
+EVEN_NUMBER			  Near	 DGROUP:0135
 FRAME_COLOR			  Number 000F
 FRAME_HEIGHT			  Number 0005
 FRAME_WIDTH			  Number 0028
 HORIZ_LINE			  Number 00CD
+L_HORIZ_END			  Near	 DGROUP:0165
 L_HORIZ_START			  Near	 DGROUP:0112
-PRINT_LINE_END			  Near	 DGROUP:014A
-PRINT_LINE_LOOP			  Near	 DGROUP:0138
+PRINT_LINE_END			  Near	 DGROUP:014B
+PRINT_LINE_LOOP			  Near	 DGROUP:0139
 START				  Near	 DGROUP:0100
 VERT_LINE			  Number 00BA
 VIDEO_SEG			  Number B800
@@ -148,5 +174,5 @@ Groups & Segments		  Bit Size Align  Combine Class
 
 DGROUP				  Group
   _DATA				  16  0000 Word	  Public  DATA
-  _TEXT				  16  014F Word	  Public  CODE
+  _TEXT				  16  0172 Word	  Public  CODE
 
