@@ -183,7 +183,7 @@ DrawVerticalLine    proc
 PrintCmdLine    proc
 
     call GetCmdLine
-    call GetWritingStartPos
+    call SetWritingStartPos
     call LoadText
 
     PrintCmdLineEnd:
@@ -218,7 +218,7 @@ GetCmdLine      proc
         endp
 
 ;--------------------------------------------------------------------------------
-; Short:   Moves
+; Short:   Sets DI to a pos to write text
 ; Exp:     CX = text length
 ;          DI = lu frame corner pos
 ; In:      -
@@ -226,7 +226,7 @@ GetCmdLine      proc
 ; Destroy: BX
 ;--------------------------------------------------------------------------------
 
-GetWritingStartPos   proc
+SetWritingStartPos   proc
 
         ; DI = center of the line to write
         add di, (2 * SCREEN_WIDTH * ((FRAME_HEIGHT - 1) / 2) + FRAME_WIDTH)
