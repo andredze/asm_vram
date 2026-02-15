@@ -3,7 +3,9 @@
 
 org 100h
 
-;//------------------------------------------------------------------------------------------
+locals @@
+
+;--------------------------------------------------------------------------------
 
 BKGND_COLOR      equ 070h
 SCREEN_WIDTH	 equ 80
@@ -25,7 +27,24 @@ RD_CORNER	     equ 0bch
 BRT_RED_CLR	     equ 0ch
 BLINKING	     equ 80h
 
-;//------------------------------------------------------------------------------------------
+; --------------------------------- MACROS ---------------------------------
+
+;--------------------------------------------------------------------------------
+; Short:   draws set symbol in vram
+; Exp:     ES = Video Segment
+;          AH = Symbol Color
+;          DF = 0
+; In:      symbol = symbol code in ASCII
+; Out:     DI++ (DI = pos after that symbol in vram)
+; Destroy: AL
+;--------------------------------------------------------------------------------
+
+DrawSymbol  macro symbol
+        mov al, symbol
+        stosw
+        endm
+
+; ---------------------------------- CODE ----------------------------------
 
 Start:
         call Main
@@ -33,52 +52,61 @@ Start:
 
 ;//==========================================================================================
 
-Main:   proc
+Main    proc
         mov ax, VIDEO_SEG 				; b800h - segment of vram
 		mov es, ax						; es - extended segment
 
-        ; di = (center of start line)
-		mov di, (2 * SCREEN_WIDTH * FRAME_START_LINE + SCREEN_WIDTH)
+        call GetFrameLeftUpperCornerPos
 
         push di
         call DrawFrame
         pop di
 
         push di
-
-		add di, (2 * SCREEN_WIDTH * ((FRAME_HEIGHT - 1) / 2))   ;
-
         call PrintCmdLine
-
         pop di
+
         call DrawFrameBackground
+
+        ret
+        endp
+
+;--------------------------------------------------------------------------------
+; Short:   moves DI to the frame left upper corner
+; Exp:     DI = 0 (start of vram)
+; In:      -
+; Out:     DI = lu corner pos
+; Destroy: -
+;--------------------------------------------------------------------------------
+
+GetFrameLeftUpperCornerPos proc
+
+        ; 1) di = (center of start line)
+        ; 2) move to the left side (a half of frame width)
+        ; -FRAME_WIDTH: not div 2, because 1 symbol = 2 bytes in vram
+        mov di, (2 * SCREEN_WIDTH * FRAME_START_LINE + SCREEN_WIDTH - FRAME_WIDTH)
+
         ret
         endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Draws a centered const size frame
-; Exp:     -
-; In:      DI = position of center of the first line of a frame
+; Exp:     DF = 0
+; In:      DI = position of left upper corner of a frame
 ; Out:     -
 ; Destroy: AX, CX, DI
 ;--------------------------------------------------------------------------------
 
 DrawFrame   proc
 
-    ; move to the left side (a half of frame width)
-    ; not div 2, because 1 symbol = 2 bytes in vram
-    sub di, FRAME_WIDTH
-
     ; 2nd ax byte = color in vram
     mov ah, FRAME_COLOR
 
-    mov al, LU_CORNER
-    stosw
+    DrawSymbol LU_CORNER
 
     call DrawHorizontalLine
 
-    mov al, RU_CORNER
-    stosw
+    DrawSymbol RU_CORNER
 
     ; move back to the left side
     ; and go to newline to skip corner
@@ -86,13 +114,11 @@ DrawFrame   proc
 
     call DrawVerticalLine
 
-    mov al, LD_CORNER
-    stosw
+    DrawSymbol LD_CORNER
 
     call DrawHorizontalLine
 
-    mov al, RD_CORNER
-    stosw
+    DrawSymbol RD_CORNER
 
     ; +2 to get in front of the corner
     ; move up below the right corner
@@ -104,41 +130,14 @@ DrawFrame   proc
     ret
     endp
 
-;//------------------------------------------------------------------------------------------
-
-DrawFrameBackground     proc
-
-    ; move to the left side (a half of frame width)
-    ; not div 2, because 1 symbol = 2 bytes in vram
-    sub di, FRAME_WIDTH
-
-    ; si = iterator for lines
-    mov si, FRAME_HEIGHT
-
-DrawBkgndLoop:
-
-    ; cx = iterator for columns
-    mov cx, FRAME_WIDTH
-
-    DrawBkgndLineLoop:
-
-        and byte ptr es:[di + 1], 0afh
-        or  byte ptr es:[di + 1], BKGND_COLOR
-
-        add di, 2
-
-    loop DrawBkgndLineLoop
-
-    add di, (2 * (SCREEN_WIDTH - FRAME_WIDTH))
-
-    dec si
-    cmp si, 0
-    jnz DrawBkgndLoop
-
-    ret
-    endp
-
-;//------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------
+; Short:   Draws horizontal frame line in vram
+; Exp:     ES = Video Segment
+;          DF = 0
+; In:      DI = start pos to draw line
+; Out:     DI = end pos of newly drown line
+; Destroy: AL, CX
+;--------------------------------------------------------------------------------
 
 DrawHorizontalLine  proc
 
@@ -150,7 +149,14 @@ DrawHorizontalLine  proc
     ret
     endp
 
-;//------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------
+; Short:   Draws vertical frame line in vram
+; Exp:     ES = Video Segment
+;          DF = 0
+; In:      DI = start pos to draw line
+; Out:     DI = end pos of newly drown line
+; Destroy: AL, CX
+;--------------------------------------------------------------------------------
 
 DrawVerticalLine    proc
 
@@ -158,20 +164,43 @@ DrawVerticalLine    proc
     mov al, VERT_LINE
     mov cx, (FRAME_HEIGHT - 2)
 
-    VerticalLineLoop:
-    mov es:[di], ax
-    add di, (SCREEN_WIDTH * 2)
-
-    loop VerticalLineLoop
+    @@Next:
+        mov es:[di], ax
+        add di, (SCREEN_WIDTH * 2)
+    loop @@Next
 
     ret
     endp
 
-;//==========================================================================================
+;--------------------------------------------------------------------------------
+; Short:   Prints cmd line in vram in the center of the frame
+; Exp:     DF = 0
+; In:      DI = lu frame corner pos
+; Out:     -
+; Destroy: AX, BX, CX, DI, SI
+;--------------------------------------------------------------------------------
 
 PrintCmdLine    proc
 
-; get cmd line
+    call GetCmdLine
+    call GetWritingStartPos
+    call LoadText
+
+    PrintCmdLineEnd:
+
+    ret
+    endp
+
+;--------------------------------------------------------------------------------
+; Short:   gets cmd line and it's length into registers
+; Exp:     -
+; In:      -
+; Out:     CX = CmdTailLen
+;          SI = &CmdTail
+; Destroy: -
+;--------------------------------------------------------------------------------
+
+GetCmdLine      proc
 
         ; CX = CmdTailLen - 1 (for the last \r)
         mov si, 80h
@@ -185,35 +214,95 @@ PrintCmdLine    proc
         ; SI = &CmdTail
         mov si, 82h
 
-    ;------------------------------------
-; center the text
+        ret
+        endp
 
-        ; BX = shift to the left
-        ; BX = StringLen
+;--------------------------------------------------------------------------------
+; Short:   Moves
+; Exp:     CX = text length
+;          DI = lu frame corner pos
+; In:      -
+; Out:     DI = start pos for writing text
+; Destroy: BX
+;--------------------------------------------------------------------------------
+
+GetWritingStartPos   proc
+
+        ; DI = center of the line to write
+        add di, (2 * SCREEN_WIDTH * ((FRAME_HEIGHT - 1) / 2) + FRAME_WIDTH)
+
+        ; BX = shift to the left = StringLen
         mov bx, cx
 
-        ; if CmdTailLen is odd: bx++ (shift one more)
         test bx, 01h
-        jz EvenLen
-        inc bx
-    EvenLen:
+
+        jz @@EvenLen
+            ; if CmdTailLen is odd: bx++ (shift one more)
+            inc bx
+        @@EvenLen:
                         ; no need to div by 2, as there are 2 bytes in vram
 		sub di, bx		; di = center - shift
 
-    ;------------------------------------
-; load the text
+        ret
+        endp
 
+;--------------------------------------------------------------------------------
+; Short:   Loads the text to vram
+; Exp:     ES = VideoSegment
+;          DF = 0
+; In:      DI = text start pos in vram
+;          SI = text start pos in data
+;          CX = text length
+; Out:     -
+; Destroy: AX, CX, DI, SI
+;--------------------------------------------------------------------------------
+
+LoadText    proc
         ; 2nd ax byte = color in vram
         mov ah, (BRT_RED_CLR or BLINKING)
 
-    LoadString:
-
+    @@Next:
         lodsb
         stosw
 
-        loop LoadString
+        loop @@Next
 
-    PrintCmdLineEnd:
+        ret
+        endp
+
+;--------------------------------------------------------------------------------
+; Short:   Draws background for the frame
+; Exp:     ES = Video Segment
+;          DF = 0
+; In:      DI = pos of the lu frame corner
+; Out:     -
+; Destroy: SI, DI, CX
+;--------------------------------------------------------------------------------
+
+DrawFrameBackground     proc
+
+    ; si = iterator for lines
+    mov si, FRAME_HEIGHT
+
+    @@NextLine:
+        ; cx = iterator for columns
+        mov cx, FRAME_WIDTH
+
+        @@NextSymbol:
+            and byte ptr es:[di + 1], 0afh
+            or  byte ptr es:[di + 1], BKGND_COLOR
+
+            add di, 2
+
+        loop @@NextSymbol
+
+        ; move to the next line start
+        add di, (2 * (SCREEN_WIDTH - FRAME_WIDTH))
+
+        dec si
+
+    cmp si, 0
+    jnz @@NextLine
 
     ret
     endp
@@ -223,10 +312,10 @@ PrintCmdLine    proc
 ; Exp:     -
 ; In:      -
 ; Out:     -
-; Destroy: ax
+; Destroy: AX
 ;--------------------------------------------------------------------------------
 
-Exit:   proc
+Exit    proc
 		mov ax, 4c00h	; exit(0)
 		int 21h			; int for DOS func call
         ret
