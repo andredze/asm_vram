@@ -6,7 +6,6 @@ org 100h
 ;//------------------------------------------------------------------------------------------
 
 BKGND_COLOR      equ 070h
-
 SCREEN_WIDTH	 equ 80
 VIDEO_SEG	     equ 0b800h
 
@@ -29,7 +28,13 @@ BLINKING	     equ 80h
 ;//------------------------------------------------------------------------------------------
 
 Start:
-		mov ax, VIDEO_SEG 				; b800h - segment of vram
+        call Main
+        call Exit
+
+;//==========================================================================================
+
+Main:   proc
+        mov ax, VIDEO_SEG 				; b800h - segment of vram
 		mov es, ax						; es - extended segment
 
         ; di = (center of start line)
@@ -47,18 +52,18 @@ Start:
 
         pop di
         call DrawFrameBackground
-; end program
+        ret
+        endp
 
-		mov ax, 4c00h	; exit(0)
-		int 21h			; int for DOS func call
+;--------------------------------------------------------------------------------
+; Short:   Draws a centered const size frame
+; Exp:     -
+; In:      DI = position of center of the first line of a frame
+; Out:     -
+; Destroy: AX, CX, DI
+;--------------------------------------------------------------------------------
 
-;//==========================================================================================
-
-; function should get di:
-; di = position in vram in the center of the DOS screen, where frame should start
-; ax, cx, di doesn't save their values
-
-DrawFrame:
+DrawFrame   proc
 
     ; move to the left side (a half of frame width)
     ; not div 2, because 1 symbol = 2 bytes in vram
@@ -97,10 +102,11 @@ DrawFrame:
     call DrawVerticalLine
 
     ret
+    endp
 
 ;//------------------------------------------------------------------------------------------
 
-DrawFrameBackground:
+DrawFrameBackground     proc
 
     ; move to the left side (a half of frame width)
     ; not div 2, because 1 symbol = 2 bytes in vram
@@ -130,10 +136,11 @@ DrawBkgndLoop:
     jnz DrawBkgndLoop
 
     ret
+    endp
 
 ;//------------------------------------------------------------------------------------------
 
-DrawHorizontalLine:
+DrawHorizontalLine  proc
 
     ; 1st ax byte = symbol
     mov al, HORIZ_LINE
@@ -141,10 +148,11 @@ DrawHorizontalLine:
     rep stosw
 
     ret
+    endp
 
 ;//------------------------------------------------------------------------------------------
 
-DrawVerticalLine:
+DrawVerticalLine    proc
 
     ; 1st ax byte = symbol
     mov al, VERT_LINE
@@ -157,10 +165,11 @@ DrawVerticalLine:
     loop VerticalLineLoop
 
     ret
+    endp
 
 ;//==========================================================================================
 
-PrintCmdLine:
+PrintCmdLine    proc
 
 ; get cmd line
 
@@ -176,7 +185,7 @@ PrintCmdLine:
         ; SI = &CmdTail
         mov si, 82h
 
-;//------------------------------------------------------------------------------------------
+    ;------------------------------------
 ; center the text
 
         ; BX = shift to the left
@@ -191,7 +200,7 @@ PrintCmdLine:
                         ; no need to div by 2, as there are 2 bytes in vram
 		sub di, bx		; di = center - shift
 
-;//------------------------------------------------------------------------------------------
+    ;------------------------------------
 ; load the text
 
         ; 2nd ax byte = color in vram
@@ -207,7 +216,22 @@ PrintCmdLine:
     PrintCmdLineEnd:
 
     ret
+    endp
 
-;//==========================================================================================
+;--------------------------------------------------------------------------------
+; Short:   ends the program
+; Exp:     -
+; In:      -
+; Out:     -
+; Destroy: ax
+;--------------------------------------------------------------------------------
+
+Exit:   proc
+		mov ax, 4c00h	; exit(0)
+		int 21h			; int for DOS func call
+        ret
+        endp
+
+;================================================================================
 
 end		Start
