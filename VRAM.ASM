@@ -63,9 +63,6 @@ Main    proc
 
         call ParseCmdLine
 
-        ; mov bx, FRAME_WIDTH
-        ; mov dx, FRAME_HEIGHT
-
         ; di = 0
         xor di, di
 
@@ -75,11 +72,9 @@ Main    proc
 
         ; 2nd ax byte = color in vram
         mov ah, (PINK or BLINKING)
-        push bx
-        push di
+        push bx di
         call DrawCenteredText
-        pop di
-        pop bx
+        pop di bx
 
         mov ah, FRAME_COLOR
         push di
@@ -145,13 +140,10 @@ ParseCmdLine    proc
         call SkipSpaces
 
         ; Get FrameHeight
-        push ax
-        push bx
+        push ax bx
         call GetInt
         mov dx, ax
-        ; pop bx ax
-        pop bx
-        pop ax
+        pop bx ax
 
         call SkipSpaces
 
@@ -195,7 +187,7 @@ MakeEven    proc
 
         test ax, 01h
         jz @@EvenLen
-        inc bx
+        inc ax
         @@EvenLen:
 
         ret
@@ -300,7 +292,10 @@ GetFrameLeftUpperCornerPos proc
         ; move up half a frame
         push dx
 
+        ; if height is odd --> add one to divide by 2
         mov ax, dx
+        call MakeEven
+
         mov si, SCREEN_WIDTH
         mul si
 
@@ -434,7 +429,10 @@ DrawCenteredText    proc
     cmp cx, 0
     jle @@End
 
+    push si ax
     call SetWritingStartPos
+    pop ax si
+
     call LoadText
 
     @@End:
@@ -444,17 +442,38 @@ DrawCenteredText    proc
 
 ;--------------------------------------------------------------------------------
 ; Short:   Sets DI to a pos to write text
-; Exp:     CX = text length
+; Exp:
+; In:      CX = text length
 ;          DI = lu frame corner pos
-; In:      -
+;          BX = frame width
+;          DX = frame height
 ; Out:     DI = start pos for writing text
-; Destroy: BX
+; Destroy: AX, BX, SI
 ;--------------------------------------------------------------------------------
 
 SetWritingStartPos   proc
 
-        ; DI = center of the line to write
-        add di, (2 * SCREEN_WIDTH * (FRAME_HEIGHT / 2) + FRAME_WIDTH)
+        ; ---------- go to the frame center ------------
+
+        ; move right half a frame
+        add di, bx
+
+        ; move down half a frame
+        push dx
+
+        ; if height is odd --> add one to divide by 2
+        mov ax, dx
+        call MakeEven
+        sub ax, 2
+
+        mov si, SCREEN_WIDTH
+        mul si
+
+        add di, ax
+
+        pop dx
+
+        ; --------------- shift left -----------------
 
         ; BX = shift to the left = StringLen
         mov bx, cx
