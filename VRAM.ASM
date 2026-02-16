@@ -7,28 +7,30 @@ locals @@
 
 ;--------------------------------------------------------------------------------
 
-ZERO_BG_COLOR    equ 0afh
-GRAY_BKGND_COLOR equ 070h
-SCREEN_WIDTH	 equ 80
-SCREEN_HEIGHT	 equ 23
-VIDEO_SEG	     equ 0b800h
+ZERO_BG_COLOR       equ 0afh
+GRAY_BKGND_COLOR    equ 070h
+SCREEN_WIDTH        equ 80
+SCREEN_HEIGHT       equ 23
+VIDEO_SEG           equ 0b800h
 
-FRAME_START_LINE equ 5
+FRAME_START_LINE    equ 5
 
-FRAME_COLOR		 equ 0ch
-FRAME_WIDTH		 equ 40
-FRAME_HEIGHT 	 equ 6
+FRAME_COLOR         equ 0ch
+FRAME_WIDTH         equ 40
+FRAME_HEIGHT        equ 6
 
-HORIZ_LINE	     equ 0cdh
-VERT_LINE	     equ 0bah
-LU_CORNER	     equ 0c9h
-RU_CORNER	     equ 0bbh
-LD_CORNER	     equ 0c8h
-RD_CORNER	     equ 0bch
+HORIZ_LINE          equ 0cdh
+VERT_LINE           equ 0bah
+LU_CORNER           equ 0c9h
+RU_CORNER           equ 0bbh
+LD_CORNER           equ 0c8h
+RD_CORNER           equ 0bch
 
-PINK    	     equ 05h
-BRT_RED_CLR	     equ 0ch
-BLINKING	     equ 80h
+GRAY_BG             equ 070h
+BLACK               equ 00h
+PINK                equ 05h
+BRT_RED_CLR         equ 0ch
+BLINKING            equ 80h
 
 ; --------------------------------- MACROS ---------------------------------
 
@@ -42,7 +44,8 @@ BLINKING	     equ 80h
 ; Destroy: AL
 ;--------------------------------------------------------------------------------
 
-DrawSymbol  macro symbol
+DrawSymbol macro symbol
+
         mov al, symbol
         stosw
         endm
@@ -50,42 +53,64 @@ DrawSymbol  macro symbol
 ; ---------------------------------- CODE ----------------------------------
 
 Start:
-        call Main
-        call Exit
+    call Main
+    call Exit
+
+; ---------------------------------- DATA ----------------------------------
+
+FrameStyle  struc
+        Color       dw ?
+        BGColor     dw ?
+        HorizLine   dw ?
+        VertLine    dw ?
+        LUCorner    dw ?
+        RUCorner    dw ?
+        LDCorner    dw ?
+        RDCorner    dw ?
+FrameStyle ends
+; //TODO - redo all program with this struct
+FrameStyles label FrameStyle
+    FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
+    FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
+    FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
 
 ;//==========================================================================================
 
-Main    proc
-        mov ax, VIDEO_SEG 				; b800h - segment of vram
-		mov es, ax						; es    - extended segment
+Main proc
 
-        call GetCmdLine
+    mov ax, VIDEO_SEG
+    ; es - extended segment
+    mov es, ax
 
-        call ParseCmdLine
+    call GetCmdLine
 
-        ; di = 0
-        xor di, di
+    call ParseCmdLine
 
-        push si
-        call GetFrameLeftUpperCornerPos
-        pop si
+    ;//TODO - make frame styles
 
-        ; 2nd ax byte = color in vram
-        mov ah, (PINK or BLINKING)
-        push bx di
-        call DrawCenteredText
-        pop di bx
+    ; di = 0
+    xor di, di
 
-        mov ah, FRAME_COLOR
-        push di
-        call DrawFrame
-        pop di
+    push si
+    call GetFrameLeftUpperCornerPos
+    pop si
 
-        mov ah, GRAY_BKGND_COLOR
-        call DrawFrameBackground
+    ; 2nd ax byte = color in vram
+    mov ah, (PINK or BLINKING)
+    push bx di
+    call DrawCenteredText
+    pop di bx
 
-        ret
-        endp
+    mov ah, FRAME_COLOR
+    push di
+    call DrawFrame
+    pop di
+
+    mov ah, GRAY_BKGND_COLOR
+    call DrawFrameBackground
+
+    ret
+    endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   gets cmd line and it's length into registers
@@ -96,21 +121,21 @@ Main    proc
 ; Destroy: -
 ;--------------------------------------------------------------------------------
 
-GetCmdLine      proc
+GetCmdLine proc
 
-        ; CX = CmdTailLen - 1 (for the last \r)
-        mov si, 80h
-        mov byte ptr cl, [si]
+    ; CX = CmdTailLen - 1 (for the last \r)
+    mov si, 80h
+    mov byte ptr cl, [si]
 
-        jcxz @@end
-        dec cx
-        @@end:
+    jcxz @@end
+    dec cx
+    @@end:
 
-        ; SI = &CmdTail
-        mov si, 82h
+    ; SI = &CmdTail
+    mov si, 82h
 
-        ret
-        endp
+    ret
+    endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Parses cmd line into text, its length, frame style, frame size
@@ -125,38 +150,38 @@ GetCmdLine      proc
 ; Destroy: DI
 ;--------------------------------------------------------------------------------
 
-ParseCmdLine    proc
+ParseCmdLine proc
 
-        ; Get FrameStyle
-        call GetInt
-        call SkipSpaces
+    ; Get FrameStyle
+    call GetInt
+    call SkipSpaces
 
-        ; Get FrameWidth
-        push ax
-        call GetInt
-        mov bx, ax
-        pop ax
+    ; Get FrameWidth
+    push ax
+    call GetInt
+    mov bx, ax
+    pop ax
 
-        call SkipSpaces
+    call SkipSpaces
 
-        ; Get FrameHeight
-        push ax bx
-        call GetInt
-        mov dx, ax
-        pop bx ax
+    ; Get FrameHeight
+    push ax bx
+    call GetInt
+    mov dx, ax
+    pop bx ax
 
-        call SkipSpaces
+    call SkipSpaces
 
-        push ax
+    push ax
 
-        mov ax, bx
-        call MakeEven
-        mov bx, ax
+    mov ax, bx
+    call MakeEven
+    mov bx, ax
 
-        pop ax
+    pop ax
 
-        ret
-        endp
+    ret
+    endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   skips spaces
@@ -167,13 +192,15 @@ ParseCmdLine    proc
 ;          SI --> first non-space symbol
 ; Destroy: -
 ;--------------------------------------------------------------------------------
-;//TODO - make function
-SkipSpaces  proc
-        inc si
-        dec cx
 
-        ret
-        endp
+;//TODO - make function
+SkipSpaces proc
+
+    inc si
+    dec cx
+
+    ret
+    endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   increments if number is odd
@@ -183,15 +210,15 @@ SkipSpaces  proc
 ; Destroy: -
 ;--------------------------------------------------------------------------------
 
-MakeEven    proc
+MakeEven proc
 
-        test ax, 01h
-        jz @@EvenLen
-        inc ax
-        @@EvenLen:
+    test ax, 01h
+    jz @@EvenLen
+    inc ax
+    @@EvenLen:
 
-        ret
-        endp
+    ret
+    endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Gets an integer value from string (until the ' ')
@@ -204,46 +231,48 @@ MakeEven    proc
 ; Destroy: BX, DX, DI
 ;--------------------------------------------------------------------------------
 
-GetInt      proc
+GetInt proc
 
-        ; if StringLen <= 0 --> end
-        cmp cx, 0
-        jle @@End
+    ; if StringLen <= 0 --> end
+    cmp cx, 0
+    jle @@End
 
-        ; dx = 0
-        xor dx, dx
+    ; dx = 0
+    xor dx, dx
 
-        ; ax = 0
-        xor ax, ax
+    ; ax = 0
+    xor ax, ax
 
-        @@Next:
-            mov byte ptr dl, [si] ; dl = curr symbol
+    @@Next:
+        ; dl = curr symbol
+        mov byte ptr dl, [si]
 
-            ; if reached not an integer --> end
-            call IsDigit
-            cmp bx, 0
-            je @@End
+        ; if reached not an integer --> end
+        call IsDigit
+        cmp bx, 0
+        je @@End
 
-            mov di, dx ; save dl for mul
+        ; save dl for mul
+        mov di, dx
 
-            ; ax *= 10
-            mov bx, 10
-            mul bx
+        ; ax *= 10
+        mov bx, 10
+        mul bx
 
-            ; get value of digit
-            sub di, '0'
+        ; get value of digit
+        sub di, '0'
 
-            ; ax += digit
-            add ax, di
+        ; ax += digit
+        add ax, di
 
-            inc si
+        inc si
 
-        loop @@Next
+    loop @@Next
 
-        @@End:
+    @@End:
 
-        ret
-        endp
+    ret
+    endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Check if given ASCII code represents an integer
@@ -254,23 +283,24 @@ GetInt      proc
 ; Destroy: -
 ;--------------------------------------------------------------------------------
 
-IsDigit     proc
-        ; bx = 0
-        xor bx, bx
+IsDigit proc
 
-        cmp dl, '0'
-        jl @@NotDigit
+    ; bx = 0
+    xor bx, bx
 
-        cmp dl, '9'
-        jg @@NotDigit
+    cmp dl, '0'
+    jl @@NotDigit
 
-        inc bx
-        ret
+    cmp dl, '9'
+    jg @@NotDigit
 
-        @@NotDigit:
+    inc bx
+    ret
 
-        ret
-        endp
+    @@NotDigit:
+
+    ret
+    endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   moves DI to the frame left upper corner
@@ -283,28 +313,28 @@ IsDigit     proc
 
 GetFrameLeftUpperCornerPos proc
 
-        ; di = center of the screen
-        mov di, (SCREEN_WIDTH * 2 * (SCREEN_HEIGHT / 2) + SCREEN_WIDTH)
+    ; di = center of the screen
+    mov di, (SCREEN_WIDTH * 2 * (SCREEN_HEIGHT / 2) + SCREEN_WIDTH)
 
-        ; move left half a frame
-        sub di, bx
+    ; move left half a frame
+    sub di, bx
 
-        ; move up half a frame
-        push dx
+    ; move up half a frame
+    push dx
 
-        ; if height is odd --> add one to divide by 2
-        mov ax, dx
-        call MakeEven
+    ; if height is odd --> add one to divide by 2
+    mov ax, dx
+    call MakeEven
 
-        mov si, SCREEN_WIDTH
-        mul si
+    mov si, SCREEN_WIDTH
+    mul si
 
-        sub di, ax
+    sub di, ax
 
-        pop dx
+    pop dx
 
-        ret
-        endp
+    ret
+    endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Draws a centered const size frame
@@ -317,7 +347,7 @@ GetFrameLeftUpperCornerPos proc
 ; Destroy: AX, CX, DI, SI
 ;--------------------------------------------------------------------------------
 
-DrawFrame   proc
+DrawFrame proc
 
     ; save lu corner pos in stack
     push di
@@ -396,7 +426,7 @@ DrawHorizontalLine  proc
 ; Destroy: AL, CX
 ;--------------------------------------------------------------------------------
 
-DrawVerticalLine    proc
+DrawVerticalLine proc
 
     ; 1st ax byte = symbol
     mov al, VERT_LINE
@@ -423,7 +453,7 @@ DrawVerticalLine    proc
 ; Destroy: BX, CX, DI, SI
 ;--------------------------------------------------------------------------------
 
-DrawCenteredText    proc
+DrawCenteredText proc
 
     ; if TextLen <= 0 -> jump to the end
     cmp cx, 0
@@ -451,44 +481,46 @@ DrawCenteredText    proc
 ; Destroy: AX, BX, SI
 ;--------------------------------------------------------------------------------
 
-SetWritingStartPos   proc
+SetWritingStartPos proc
 
-        ; ---------- go to the frame center ------------
+    ; ---------- go to the frame center ------------
 
-        ; move right half a frame
-        add di, bx
+    ; move right half a frame
+    add di, bx
 
-        ; move down half a frame
-        push dx
+    ; move down half a frame
+    push dx
 
-        ; if height is odd --> add one to divide by 2
-        mov ax, dx
-        call MakeEven
-        sub ax, 2
+    ; if height is odd --> add one to divide by 2
+    mov ax, dx
+    call MakeEven
+    sub ax, 2
 
-        mov si, SCREEN_WIDTH
-        mul si
+    mov si, SCREEN_WIDTH
+    mul si
 
-        add di, ax
+    add di, ax
 
-        pop dx
+    pop dx
 
-        ; --------------- shift left -----------------
+    ; --------------- shift left -----------------
 
-        ; BX = shift to the left = StringLen
-        mov bx, cx
+    ; BX = shift to the left = StringLen
+    mov bx, cx
 
-        test bx, 01h
+    test bx, 01h
 
-        jz @@EvenLen
-            ; if CmdTailLen is odd: bx++ (shift one more)
-            inc bx
-        @@EvenLen:
-                        ; no need to div by 2, as there are 2 bytes in vram
-		sub di, bx		; di = center - shift
+    jz @@EvenLen
+        ; if CmdTailLen is odd: bx++ (shift one more)
+        inc bx
+    @@EvenLen:
 
-        ret
-        endp
+    ; no need to div by 2, as there are 2 bytes in vram
+    ; di = center - shift
+    sub di, bx
+
+    ret
+    endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Loads the text to vram
@@ -502,16 +534,16 @@ SetWritingStartPos   proc
 ; Destroy: CX, DI, SI
 ;--------------------------------------------------------------------------------
 
-LoadText    proc
+LoadText proc
 
     @@Next:
         lodsb
         stosw
 
-        loop @@Next
+    loop @@Next
 
-        ret
-        endp
+    ret
+    endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Draws background for the frame
@@ -525,7 +557,7 @@ LoadText    proc
 ; Destroy: SI, DI, CX, BP
 ;--------------------------------------------------------------------------------
 
-DrawFrameBackground     proc
+DrawFrameBackground proc
 
     ; si = iterator for lines
     mov si, dx
@@ -567,12 +599,16 @@ DrawFrameBackground     proc
 ; Destroy: AX
 ;--------------------------------------------------------------------------------
 
-Exit    proc
-		mov ax, 4c00h	; exit(0)
-		int 21h			; int for DOS func call
-        ret
-        endp
+Exit proc
+
+    ; exit(0)
+    mov ax, 4c00h
+    ; int for DOS func call
+    int 21h
+
+    ret
+    endp
 
 ;================================================================================
 
-end		Start
+end Start
