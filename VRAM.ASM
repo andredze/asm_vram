@@ -7,6 +7,9 @@ locals @@
 
 ;--------------------------------------------------------------------------------
 
+CMD_TAIL_LEN_INDEX  equ 80h
+CMD_TAIL_INDEX      equ 82h
+
 ZERO_BG_COLOR       equ 0afh
 GRAY_BKGND_COLOR    equ 070h
 SCREEN_WIDTH        equ 80
@@ -35,7 +38,7 @@ BLINKING            equ 80h
 ; --------------------------------- MACROS ---------------------------------
 
 ;--------------------------------------------------------------------------------
-; Short:   draws set symbol in vram
+; Short:   draws symbol in vram
 ; Exp:     ES = Video Segment
 ;          AH = Symbol Color
 ;          DF = 0
@@ -124,7 +127,7 @@ Main proc
 GetCmdLine proc
 
     ; CX = CmdTailLen - 1 (for the last \r)
-    mov si, 80h
+    mov si, CMD_TAIL_LEN_INDEX
     mov byte ptr cl, [si]
 
     jcxz @@end
@@ -132,7 +135,7 @@ GetCmdLine proc
     @@end:
 
     ; SI = &CmdTail
-    mov si, 82h
+    mov si, CMD_TAIL_INDEX
 
     ret
     endp
@@ -247,7 +250,7 @@ GetInt proc
         ; dl = curr symbol
         mov byte ptr dl, [si]
 
-        ; if reached not an integer --> end
+        ; end when not a digit
         call IsDigit
         cmp bx, 0
         je @@End
