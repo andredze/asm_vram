@@ -7,6 +7,18 @@ locals @@
 
 ;--------------------------------------------------------------------------------
 
+FS_TEXT_COLOR_SHIFT equ 0
+FS_BG_COLOR_SHIFT   equ 1
+FS_LU_CORNER_ADDR   equ 2
+FS_HOR_UP_ADDR      equ 4
+FS_RU_CORNER_ADDR   equ 6
+FS_L_VERT_ADDR      equ 8
+FS_R_VERT_ADDR      equ 10
+FS_LD_CORNER_ADDR   equ 12
+FS_HOR_DOWN_ADDR    equ 14
+FS_RD_CORNER_ADDR   equ 16
+FS_STYLE_LENGTH     equ 18
+
 CMD_TAIL_LEN_INDEX  equ 80h
 CMD_TAIL_INDEX      equ 82h
 
@@ -40,16 +52,15 @@ BLINKING            equ 80h
 ;--------------------------------------------------------------------------------
 ; Short:   draws symbol in vram
 ; Exp:     ES = Video Segment
-;          AH = Symbol Color
 ;          DF = 0
 ; In:      symbol = symbol code in ASCII
 ; Out:     DI++ (DI = pos after that symbol in vram)
-; Destroy: AL
+; Destroy: AX
 ;--------------------------------------------------------------------------------
 
 DrawSymbol macro symbol
 
-        mov al, symbol
+        mov ax, symbol
         stosw
         endm
 
@@ -61,21 +72,21 @@ Start:
 
 ; ---------------------------------- DATA ----------------------------------
 
-FrameStyle  struc
-        Color       dw ?
-        BGColor     dw ?
-        HorizLine   dw ?
-        VertLine    dw ?
-        LUCorner    dw ?
-        RUCorner    dw ?
-        LDCorner    dw ?
-        RDCorner    dw ?
-FrameStyle ends
-; //TODO - redo all program with this struct
-FrameStyles label FrameStyle
-    FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
-    FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
-    FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
+; FrameStyle  struc
+;         Color       dw ?
+;         BGColor     dw ?
+;         HorizLine   dw ?
+;         VertLine    dw ?
+;         LUCorner    dw ?
+;         RUCorner    dw ?
+;         LDCorner    dw ?
+;         RDCorner    dw ?
+; FrameStyle ends
+; ; //TODO - redo all program with this struct
+; FrameStyles label FrameStyle
+;     FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
+;     FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
+;     FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
 
 ;//==========================================================================================
 
@@ -88,36 +99,58 @@ Main proc
     call GetCmdLine
 
     call ParseCmdLine
+    ; AX -> frame params
 
-    ;//TODO - make frame styles
+    push si
+
+    ; SI = AX (as ax can not be indexed)
+    mov si, ax
+
+    ; AX = &Text
+    pop ax
 
     ; di = 0
     xor di, di
 
-    push si
     push bx dx
     call GetFrameLeftUpperCornerPos
     ; no need to return sp --> pascal type function
-    pop si
+
+    ; save frame style ptr
+    push si
 
     ; 2nd ax byte = color in vram
-    mov ah, (PINK or BLINKING)
+    ; text color
+    push [si + FS_TEXT_COLOR_SHIFT]
+
+    ; get &Text from ax
+    mov si, ax
+
+    ; get text color
+    pop ax
+
     push bx di
     call DrawCenteredText
     pop di bx
+    ; get frame style ptr
+    pop si
 
-    push di
-    mov ah, FRAME_COLOR
+; FIXME - maybe no need to save si
+    push di si
 
-    push ax dx bx di
+    push si dx bx di
     call DrawFrame
     ; have to return sp --> c_decl type function
     add sp, 8
 
-    pop di
+    pop si di
 
-    mov ah, GRAY_BKGND_COLOR
+    ; BackGround Color
+    mov byte ptr ah, [si + FS_BG_COLOR_SHIFT]
     call DrawFrameBackground
+
+    ; return stack back to its state after pushing &Text
+    sub sp, 2
 
     ret
     endp
@@ -163,26 +196,30 @@ GetCmdLine proc
 ParseCmdLine proc
 
     ; Get FrameStyle
-    call GetInt
+    ; call SkipSpaces
+
+    ; AX --> all symbols that make a frame
+    mov ax, si
+    add si, FS_STYLE_LENGTH
+    sub cx, FS_STYLE_LENGTH
+
     call SkipSpaces
 
-    ; Get FrameWidth
     push ax
+
+    ; Get FrameWidth
     call GetInt
     mov bx, ax
-    pop ax
 
     call SkipSpaces
 
     ; Get FrameHeight
-    push ax bx
+    push bx
     call GetInt
     mov dx, ax
-    pop bx ax
+    pop bx
 
     call SkipSpaces
-
-    push ax
 
     mov ax, bx
     call MakeEven
@@ -205,6 +242,8 @@ ParseCmdLine proc
 
 ;//TODO - make function
 SkipSpaces proc
+
+
 
     inc si
     dec cx
@@ -363,7 +402,7 @@ GetFrameLeftUpperCornerPos proc
 ;          [3] = position of left upper corner of a frame (DI)
 ;          [2] = frame width (BX)
 ;          [1] = frame height (DX)
-;          [0] = frame color code (AH)
+;          [0] --> frame style format (SI)
 ; Out:     -
 ; Destroy: AX, CX, DI, SI
 ; Note:    add sp, 8 after usage
@@ -378,16 +417,24 @@ DrawFrame proc
     mov di, [bp + 4]
     mov bx, [bp + 6]
     mov dx, [bp + 8]
-    mov ax, [bp + 10]
+    mov si, [bp + 10]
 
     ; save lu corner pos in stack
     push di
 
-    DrawSymbol LU_CORNER
+    ; Draw Left Upper corner
+    mov ax, [si + FS_LU_CORNER_ADDR]
+    stosw
 
+    ; AX = upper horizontal line symbol
+    mov ax, [si + FS_HOR_UP_ADDR]
     call DrawHorizontalLine
 
-    DrawSymbol RU_CORNER
+    ; Draw Right Upper corner
+    mov ax, [si + FS_RU_CORNER_ADDR]
+    stosw
+
+    push si
 
     ; move back to the left side
     ; -FRAME_WIDTH * 2
@@ -398,13 +445,23 @@ DrawFrame proc
     ; and go to newline to skip corner
     add di, (SCREEN_WIDTH * 2)
 
+    pop si
+
+    ; AX = left vertical line symbol
+    mov ax, [si + FS_L_VERT_ADDR]
     call DrawVerticalLine
 
-    DrawSymbol LD_CORNER
+    ; Draw Left Down corner
+    mov ax, [si + FS_LD_CORNER_ADDR]
+    stosw
 
+    ; AX = down horizontal line symbol
+    mov ax, [si + FS_HOR_DOWN_ADDR]
     call DrawHorizontalLine
 
-    DrawSymbol RD_CORNER
+    ; Draw Right Down corner
+    mov ax, [si + FS_RD_CORNER_ADDR]
+    stosw
 
     ; get lu corner pos
     pop di
@@ -420,6 +477,8 @@ DrawFrame proc
 
     pop bx
 
+    ; AX = right vertical line symbol
+    mov ax, [si + FS_R_VERT_ADDR]
     call DrawVerticalLine
 
     pop bp
@@ -432,14 +491,12 @@ DrawFrame proc
 ;          DF = 0
 ; In:      DI = start pos to draw line
 ;          BX = frame width
+;          AX = symbol to write line with
 ; Out:     DI = end pos of newly drown line
-; Destroy: AL, CX
+; Destroy: CX
 ;--------------------------------------------------------------------------------
 
 DrawHorizontalLine  proc
-
-    ; 1st ax byte = symbol
-    mov al, HORIZ_LINE
 
     mov cx, bx
     sub cx, 2
@@ -454,14 +511,12 @@ DrawHorizontalLine  proc
 ;          DF = 0
 ; In:      DI = start pos to draw line
 ;          DX = frame height
+;          AX = symbol to write line with
 ; Out:     DI = end pos of newly drown line
-; Destroy: AL, CX
+; Destroy: CX
 ;--------------------------------------------------------------------------------
 
 DrawVerticalLine proc
-
-    ; 1st ax byte = symbol
-    mov al, VERT_LINE
 
     mov cx, dx
     sub cx, 2
