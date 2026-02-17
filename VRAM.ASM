@@ -29,7 +29,7 @@ RU_CORNER           equ 0bbh
 LD_CORNER           equ 0c8h
 RD_CORNER           equ 0bch
 
-GRAY_BG             equ 070h
+GRAY_BG             equ 70h
 BLACK               equ 00h
 PINK                equ 05h
 BRT_RED_CLR         equ 0ch
@@ -95,7 +95,9 @@ Main proc
     xor di, di
 
     push si
+    push bx dx
     call GetFrameLeftUpperCornerPos
+    ; no need to return sp --> pascal type function
     pop si
 
     ; 2nd ax byte = color in vram
@@ -104,9 +106,14 @@ Main proc
     call DrawCenteredText
     pop di bx
 
-    mov ah, FRAME_COLOR
     push di
+    mov ah, FRAME_COLOR
+
+    push ax dx bx di
     call DrawFrame
+    ; have to return sp --> c_decl type function
+    add sp, 8
+
     pop di
 
     mov ah, GRAY_BKGND_COLOR
@@ -130,9 +137,9 @@ GetCmdLine proc
     mov si, CMD_TAIL_LEN_INDEX
     mov byte ptr cl, [si]
 
-    jcxz @@end
+    jcxz @@End
     dec cx
-    @@end:
+    @@End:
 
     ; SI = &CmdTail
     mov si, CMD_TAIL_INDEX
@@ -306,15 +313,23 @@ IsDigit proc
     endp
 
 ;--------------------------------------------------------------------------------
+;                       PASCAL TYPE
 ; Short:   moves DI to the frame left upper corner
 ; Exp:     DI = 0 (start of vram)
-; In:      BX = frame width
-;          DX = frame height
+; In:      push in stack in order:
+;          [0] = frame width  (BX)
+;          [1] = frame height (DX)
 ; Out:     DI = lu corner pos
 ; Destroy: AX, SI
 ;--------------------------------------------------------------------------------
 
 GetFrameLeftUpperCornerPos proc
+
+    push bp
+    mov bp, sp
+
+    mov bx, [bp + 6]
+    mov dx, [bp + 4]
 
     ; di = center of the screen
     mov di, (SCREEN_WIDTH * 2 * (SCREEN_HEIGHT / 2) + SCREEN_WIDTH)
@@ -336,21 +351,34 @@ GetFrameLeftUpperCornerPos proc
 
     pop dx
 
-    ret
+    pop bp
+    ret 4
     endp
 
 ;--------------------------------------------------------------------------------
+;                   C-DECL TYPE
 ; Short:   Draws a centered const size frame
 ; Exp:     DF = 0
-; In:      DI = position of left upper corner of a frame
-;          BX = frame width
-;          DX = frame height
-;          AH = frame color code
+; In:      push in stack in order:
+;          [3] = position of left upper corner of a frame (DI)
+;          [2] = frame width (BX)
+;          [1] = frame height (DX)
+;          [0] = frame color code (AH)
 ; Out:     -
 ; Destroy: AX, CX, DI, SI
+; Note:    add sp, 8 after usage
 ;--------------------------------------------------------------------------------
 
 DrawFrame proc
+
+    push bp
+    mov bp, sp
+
+    ; get arguments from stack
+    mov di, [bp + 4]
+    mov bx, [bp + 6]
+    mov dx, [bp + 8]
+    mov ax, [bp + 10]
 
     ; save lu corner pos in stack
     push di
@@ -394,6 +422,7 @@ DrawFrame proc
 
     call DrawVerticalLine
 
+    pop bp
     ret
     endp
 
