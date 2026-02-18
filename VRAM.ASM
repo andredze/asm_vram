@@ -7,7 +7,9 @@ locals @@
 
 ;--------------------------------------------------------------------------------
 
-FS_STYLE_LENGTH     equ 18
+RESET_SYMBOL        equ 0720h
+FRAME_ANIM_ITERS    equ 10
+FS_STYLE_SIZE       equ 20
 
 CMD_TAIL_LEN_INDEX  equ 80h
 CMD_TAIL_INDEX      equ 82h
@@ -20,10 +22,7 @@ VIDEO_SEG           equ 0b800h
 
 FRAME_START_LINE    equ 5
 
-FRAME_COLOR         equ 0ch
-FRAME_WIDTH         equ 40
-FRAME_HEIGHT        equ 6
-
+HEART               equ 03h
 HORIZ_LINE          equ 0cdh
 VERT_LINE           equ 0bah
 LU_CORNER           equ 0c9h
@@ -33,26 +32,27 @@ RD_CORNER           equ 0bch
 
 GRAY_BG             equ 70h
 BLACK               equ 00h
-PINK                equ 05h
+PINK                equ 0dh
+PINK_BG             equ 50h
 BRT_RED             equ 0ch
 BLINKING            equ 80h
 
 ; --------------------------------- MACROS ---------------------------------
 
-;--------------------------------------------------------------------------------
-; Short:   draws symbol in vram
-; Exp:     ES = Video Segment
-;          DF = 0
-; In:      symbol = symbol code in ASCII
-; Out:     DI++ (DI = pos after that symbol in vram)
-; Destroy: AX
-;--------------------------------------------------------------------------------
-
-DrawSymbol macro symbol
-
-        mov ax, symbol
-        stosw
-        endm
+; ;--------------------------------------------------------------------------------
+; ; Short:   draws symbol in vram
+; ; Exp:     ES = Video Segment
+; ;          DF = 0
+; ; In:      symbol = symbol code in ASCII
+; ; Out:     DI++ (DI = pos after that symbol in vram)
+; ; Destroy: AX
+; ;--------------------------------------------------------------------------------
+;
+; DrawSymbol macro symbol
+;
+;         mov ax, symbol
+;         stosw
+;         endm
 
 ; ---------------------------------- CODE ----------------------------------
 
@@ -60,7 +60,7 @@ Start:
     call Main
     call Exit
 
-; ---------------------------------- DATA ----------------------------------
+; ------------------------------- DATA TYPES -------------------------------
 
 FrameStyle struc
     TextColor           dw ?
@@ -88,10 +88,18 @@ Main proc
     call ParseCmdLine
     ; AX -> frame params
 
+; TODO frame grows and then back
+; TODO clean code and comments
+
+; FIXME errors when nothing is inputted
+
+; TODO function get FS data ptr (or into parser)
+; TODO check that this style exists
+;------------------------------------
     push dx bx
-    mov bx, FS_STYLE_LENGTH
+    mov bx, FS_STYLE_SIZE
     mul bx
-    add ax, offset DefaultFS
+    add ax, offset FrameStylesTable
     pop bx dx
 
     push si
@@ -101,6 +109,49 @@ Main proc
 
     ; AX = &Text
     pop ax
+
+    ;------------------------------------
+
+    mov bp, FRAME_ANIM_ITERS
+
+    @@Next:
+
+        push ax cx di
+        call ClearScreen
+        pop di cx ax
+
+        push ax cx si bp
+        xor bp, bp
+        call DrawScreen
+        pop bp si cx ax
+
+        call WaitTime
+
+        add bx, 2
+        add dx, 1
+
+    dec bp
+    cmp bp, 0
+    jge @@Next
+
+    ;------------------------------------
+
+    ret
+Main endp
+
+;--------------------------------------------------------------------------------
+; Short:   Draws frame, it's bg and text on the screen
+; Exp:     -
+; In:      BX = frame width
+;          DX = frame height
+;          CX = text length
+;          SI --> frame style
+;          AX --> text
+; Out:     -
+; Destroy: AX, CX, SI, DI
+;--------------------------------------------------------------------------------
+
+DrawScreen proc
 
     ; di = 0
     xor di, di
@@ -113,6 +164,8 @@ Main proc
     ; no need to return sp --> pascal type function
     pop si ax
 
+;------------------------------------
+; get text color (prepare args for DrawText)
     ; save frame style ptr
     push si
 
@@ -126,6 +179,8 @@ Main proc
     ; get text color
     pop ax
 
+;------------------------------------
+
     push bx di
     call DrawCenteredText
     pop di bx
@@ -133,6 +188,7 @@ Main proc
     ; get frame style ptr
     pop si
 
+;------------------------------------
 ; FIXME - maybe no need to save si (?)
     push di si
 
@@ -142,17 +198,77 @@ Main proc
     add sp, 8
 
     pop si di
+;------------------------------------
 
     ; BackGround Color
     mov ax, [si + BGColor]
-
     call DrawFrameBackground
 
     ret
-Main endp
+DrawScreen endp
 
 ;--------------------------------------------------------------------------------
-; Short:   gets cmd line and it's length into registers
+; Short:   Clears the screen
+; Exp:     DF = 0
+; In:      -
+; Out:     -
+; Destroy: AX, CX, DI
+;--------------------------------------------------------------------------------
+
+ClearScreen proc
+
+    ; AX = space with gray color ob black bg
+    mov ax, RESET_SYMBOL
+    xor di, di
+    mov cx, (SCREEN_WIDTH * SCREEN_HEIGHT)
+
+    rep stosw
+
+    ret
+ClearScreen endp
+
+;--------------------------------------------------------------------------------
+; Short:   Waits 1 second by using DOS int
+; Exp:     -
+; In:      -
+; Out:     -
+; Destroy: -
+;--------------------------------------------------------------------------------
+
+WaitTime proc
+
+    push dx cx bx ax
+
+    ; SetDosTime
+    mov ah, 2ch
+
+    ; DOS interrupt
+    int 21h
+
+    ; save curr seconds
+    ; dh = seconds
+    mov bh, dh
+    cmp bh, 59
+    jb @@Next
+    sub bh, 58
+
+    @@Next:
+        ; SetDosTime
+        mov ah, 2ch
+
+        ; DOS interrupt
+        int 21h
+
+    cmp dh, bh
+    jle @@Next
+
+    pop ax bx cx dx
+
+    ret
+WaitTime endp
+
+;--------------------------------------------------------------------------------
+; Short:   Gets cmd line and it's length into registers
 ; Exp:     -
 ; In:      -
 ; Out:     CX = CmdTailLen
@@ -236,6 +352,7 @@ ParseCmdLine endp
 ;//TODO - make function
 SkipSpaces proc
 
+    
 
     inc si
     dec cx
@@ -633,17 +750,20 @@ LoadText endp
 ;          DX = frame height
 ;          AH = background color
 ; Out:     -
-; Destroy: SI, DI, CX, BP
+; Destroy: SI, DI, CX
 ;--------------------------------------------------------------------------------
 
 DrawFrameBackground proc
+
+    ; save bp
+    push bp
 
     ; si = iterator for lines
     mov si, dx
 
     ; bp = 2 * (SCREEN_WIDTH - FRAME_WIDTH)
     ; bp = shift for DI in loop
-    mov bp, (2 * (SCREEN_WIDTH - FRAME_WIDTH))
+    mov bp, (SCREEN_WIDTH)
     sub bp, bx
     shl bp, 1
 
@@ -666,6 +786,8 @@ DrawFrameBackground proc
 
     cmp si, 0
     jnz @@NextLine
+
+    pop bp
 
     ret
 DrawFrameBackground endp
@@ -692,19 +814,49 @@ Exit endp
 
 .data
 
-; 0           1         2     4       6   8       10
-; [TEXT_COLOR][BG_COLOR][LUx2][UP_HOR][RU][L_VERT][]
-; FrameStyle      db PINK, GRAY_BG
-;                 db LU_CORNER, BRT_RED, HORIZ_LINE, BRT_RED, RU_CORNER, BRT_RED
-;                 db VERT_LINE, BRT_RED, VERT_LINE, BRT_RED
-;                 db LD_CORNER, BRT_RED, HORIZ_LINE, BRT_RED, RD_CORNER, BRT_RED
+FrameStylesTable label FrameStyle
 
-DefaultFS FrameStyle <(PINK * 100h), (GRAY_BG * 100h), (LU_CORNER + BRT_RED * 100h), (HORIZ_LINE + BRT_RED * 100h), (RU_CORNER + BRT_RED * 100h), (VERT_LINE + BRT_RED * 100h), (VERT_LINE + BRT_RED * 100h), (LD_CORNER + BRT_RED * 100h), (HORIZ_LINE + BRT_RED * 100h), (RD_CORNER + BRT_RED * 100h)>
+;------------------------------------
+; normal
+    FrameStyle <                        \
+        (             PINK    * 100h),  \
+        (             GRAY_BG * 100h),  \
+        (LU_CORNER  + BRT_RED * 100h),  \
+        (HORIZ_LINE + BRT_RED * 100h),  \
+        (RU_CORNER  + BRT_RED * 100h),  \
+        (VERT_LINE  + BRT_RED * 100h),  \
+        (VERT_LINE  + BRT_RED * 100h),  \
+        (LD_CORNER  + BRT_RED * 100h),  \
+        (HORIZ_LINE + BRT_RED * 100h),  \
+        (RD_CORNER  + BRT_RED * 100h)>
 
-; FrameStyles label FrameStyle
-;     FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
-;     FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
-;     FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
+;------------------------------------
+; pink
+    FrameStyle <                   \
+        (        PINK * 100h),     \
+        (        PINK_BG * 100h),  \
+        (HEART + PINK * 100h),     \
+        (HEART + PINK * 100h),     \
+        (HEART + PINK * 100h),     \
+        (HEART + PINK * 100h),     \
+        (HEART + PINK * 100h),     \
+        (HEART + PINK * 100h),     \
+        (HEART + PINK * 100h),     \
+        (HEART + PINK * 100h)>
+
+;------------------------------------
+; skulls
+    FrameStyle <                        \
+        (             PINK    * 100h),  \
+        (             GRAY_BG * 100h),  \
+        (LU_CORNER  + BRT_RED * 100h),  \
+        (HORIZ_LINE + BRT_RED * 100h),  \
+        (RU_CORNER  + BRT_RED * 100h),  \
+        (VERT_LINE  + BRT_RED * 100h),  \
+        (VERT_LINE  + BRT_RED * 100h),  \
+        (LD_CORNER  + BRT_RED * 100h),  \
+        (HORIZ_LINE + BRT_RED * 100h),  \
+        (RD_CORNER  + BRT_RED * 100h)>
 
 ;================================================================================
 
