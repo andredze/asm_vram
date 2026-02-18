@@ -7,16 +7,6 @@ locals @@
 
 ;--------------------------------------------------------------------------------
 
-FS_TEXT_COLOR_SHIFT equ 0
-FS_BG_COLOR_SHIFT   equ 1
-FS_LU_CORNER_ADDR   equ 2
-FS_HOR_UP_ADDR      equ 4
-FS_RU_CORNER_ADDR   equ 6
-FS_L_VERT_ADDR      equ 8
-FS_R_VERT_ADDR      equ 10
-FS_LD_CORNER_ADDR   equ 12
-FS_HOR_DOWN_ADDR    equ 14
-FS_RD_CORNER_ADDR   equ 16
 FS_STYLE_LENGTH     equ 18
 
 CMD_TAIL_LEN_INDEX  equ 80h
@@ -44,7 +34,7 @@ RD_CORNER           equ 0bch
 GRAY_BG             equ 70h
 BLACK               equ 00h
 PINK                equ 05h
-BRT_RED_CLR         equ 0ch
+BRT_RED             equ 0ch
 BLINKING            equ 80h
 
 ; --------------------------------- MACROS ---------------------------------
@@ -72,21 +62,18 @@ Start:
 
 ; ---------------------------------- DATA ----------------------------------
 
-; FrameStyle  struc
-;         Color       dw ?
-;         BGColor     dw ?
-;         HorizLine   dw ?
-;         VertLine    dw ?
-;         LUCorner    dw ?
-;         RUCorner    dw ?
-;         LDCorner    dw ?
-;         RDCorner    dw ?
-; FrameStyle ends
-; ; //TODO - redo all program with this struct
-; FrameStyles label FrameStyle
-;     FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
-;     FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
-;     FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
+FrameStyle struc
+    TextColor           dw ?
+    BGColor             dw ?
+    LUCorner            dw ?
+    UHorizLine          dw ?
+    RUCorner            dw ?
+    LVertLine           dw ?
+    RVertLine           dw ?
+    LDCorner            dw ?
+    DHorizLine          dw ?
+    RDCorner            dw ?
+FrameStyle ends
 
 ;//==========================================================================================
 
@@ -101,6 +88,12 @@ Main proc
     call ParseCmdLine
     ; AX -> frame params
 
+    push dx bx
+    mov bx, FS_STYLE_LENGTH
+    mul bx
+    add ax, offset DefaultFS
+    pop bx dx
+
     push si
 
     ; SI = AX (as ax can not be indexed)
@@ -112,16 +105,20 @@ Main proc
     ; di = 0
     xor di, di
 
+    ; save values
+    push ax si
+    ; arguments
     push bx dx
     call GetFrameLeftUpperCornerPos
     ; no need to return sp --> pascal type function
+    pop si ax
 
     ; save frame style ptr
     push si
 
     ; 2nd ax byte = color in vram
     ; text color
-    push [si + FS_TEXT_COLOR_SHIFT]
+    push [si + TextColor]
 
     ; get &Text from ax
     mov si, ax
@@ -132,10 +129,11 @@ Main proc
     push bx di
     call DrawCenteredText
     pop di bx
+
     ; get frame style ptr
     pop si
 
-; FIXME - maybe no need to save si
+; FIXME - maybe no need to save si (?)
     push di si
 
     push si dx bx di
@@ -146,14 +144,12 @@ Main proc
     pop si di
 
     ; BackGround Color
-    mov byte ptr ah, [si + FS_BG_COLOR_SHIFT]
+    mov ax, [si + BGColor]
+
     call DrawFrameBackground
 
-    ; return stack back to its state after pushing &Text
-    sub sp, 2
-
     ret
-    endp
+Main endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   gets cmd line and it's length into registers
@@ -178,7 +174,7 @@ GetCmdLine proc
     mov si, CMD_TAIL_INDEX
 
     ret
-    endp
+GetCmdLine endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Parses cmd line into text, its length, frame style, frame size
@@ -198,11 +194,8 @@ ParseCmdLine proc
     ; Get FrameStyle
     ; call SkipSpaces
 
-    ; AX --> all symbols that make a frame
-    mov ax, si
-    add si, FS_STYLE_LENGTH
-    sub cx, FS_STYLE_LENGTH
-
+    ; Get FrameStyle
+    call GetInt
     call SkipSpaces
 
     push ax
@@ -228,7 +221,7 @@ ParseCmdLine proc
     pop ax
 
     ret
-    endp
+ParseCmdLine endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   skips spaces
@@ -244,12 +237,11 @@ ParseCmdLine proc
 SkipSpaces proc
 
 
-
     inc si
     dec cx
 
     ret
-    endp
+SkipSpaces endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   increments if number is odd
@@ -267,7 +259,7 @@ MakeEven proc
     @@EvenLen:
 
     ret
-    endp
+MakeEven endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Gets an integer value from string (until the ' ')
@@ -321,7 +313,7 @@ GetInt proc
     @@End:
 
     ret
-    endp
+GetInt endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Check if given ASCII code represents an integer
@@ -349,7 +341,7 @@ IsDigit proc
     @@NotDigit:
 
     ret
-    endp
+IsDigit endp
 
 ;--------------------------------------------------------------------------------
 ;                       PASCAL TYPE
@@ -392,7 +384,7 @@ GetFrameLeftUpperCornerPos proc
 
     pop bp
     ret 4
-    endp
+GetFrameLeftUpperCornerPos endp
 
 ;--------------------------------------------------------------------------------
 ;                   C-DECL TYPE
@@ -423,15 +415,15 @@ DrawFrame proc
     push di
 
     ; Draw Left Upper corner
-    mov ax, [si + FS_LU_CORNER_ADDR]
+    mov ax, [si + LuCorner]
     stosw
 
     ; AX = upper horizontal line symbol
-    mov ax, [si + FS_HOR_UP_ADDR]
+    mov ax, [si + UHorizLine]
     call DrawHorizontalLine
 
     ; Draw Right Upper corner
-    mov ax, [si + FS_RU_CORNER_ADDR]
+    mov ax, [si + RuCorner]
     stosw
 
     push si
@@ -448,19 +440,19 @@ DrawFrame proc
     pop si
 
     ; AX = left vertical line symbol
-    mov ax, [si + FS_L_VERT_ADDR]
+    mov ax, [si + LVertLine]
     call DrawVerticalLine
 
     ; Draw Left Down corner
-    mov ax, [si + FS_LD_CORNER_ADDR]
+    mov ax, [si + LdCorner]
     stosw
 
     ; AX = down horizontal line symbol
-    mov ax, [si + FS_HOR_DOWN_ADDR]
+    mov ax, [si + DHorizLine]
     call DrawHorizontalLine
 
     ; Draw Right Down corner
-    mov ax, [si + FS_RD_CORNER_ADDR]
+    mov ax, [si + RdCorner]
     stosw
 
     ; get lu corner pos
@@ -478,12 +470,12 @@ DrawFrame proc
     pop bx
 
     ; AX = right vertical line symbol
-    mov ax, [si + FS_R_VERT_ADDR]
+    mov ax, [si + RVertLine]
     call DrawVerticalLine
 
     pop bp
     ret
-    endp
+DrawFrame endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Draws horizontal frame line in vram
@@ -496,14 +488,14 @@ DrawFrame proc
 ; Destroy: CX
 ;--------------------------------------------------------------------------------
 
-DrawHorizontalLine  proc
+DrawHorizontalLine proc
 
     mov cx, bx
     sub cx, 2
     rep stosw
 
     ret
-    endp
+DrawHorizontalLine endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Draws vertical frame line in vram
@@ -527,7 +519,7 @@ DrawVerticalLine proc
     loop @@Next
 
     ret
-    endp
+DrawVerticalLine endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Prints cmd line in vram in the center of the frame
@@ -555,7 +547,7 @@ DrawCenteredText proc
     @@End:
 
     ret
-    endp
+DrawCenteredText endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Sets DI to a pos to write text
@@ -607,7 +599,7 @@ SetWritingStartPos proc
     sub di, bx
 
     ret
-    endp
+SetWritingStartPos endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Loads the text to vram
@@ -630,7 +622,7 @@ LoadText proc
     loop @@Next
 
     ret
-    endp
+LoadText endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Draws background for the frame
@@ -676,7 +668,7 @@ DrawFrameBackground proc
     jnz @@NextLine
 
     ret
-    endp
+DrawFrameBackground endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   ends the program
@@ -694,8 +686,26 @@ Exit proc
     int 21h
 
     ret
-    endp
+Exit endp
+
+;--------------------------------------------------------------------------------
+
+.data
+
+; 0           1         2     4       6   8       10
+; [TEXT_COLOR][BG_COLOR][LUx2][UP_HOR][RU][L_VERT][]
+; FrameStyle      db PINK, GRAY_BG
+;                 db LU_CORNER, BRT_RED, HORIZ_LINE, BRT_RED, RU_CORNER, BRT_RED
+;                 db VERT_LINE, BRT_RED, VERT_LINE, BRT_RED
+;                 db LD_CORNER, BRT_RED, HORIZ_LINE, BRT_RED, RD_CORNER, BRT_RED
+
+DefaultFS FrameStyle <(PINK * 100h), (GRAY_BG * 100h), (LU_CORNER + BRT_RED * 100h), (HORIZ_LINE + BRT_RED * 100h), (RU_CORNER + BRT_RED * 100h), (VERT_LINE + BRT_RED * 100h), (VERT_LINE + BRT_RED * 100h), (LD_CORNER + BRT_RED * 100h), (HORIZ_LINE + BRT_RED * 100h), (RD_CORNER + BRT_RED * 100h)>
+
+; FrameStyles label FrameStyle
+;     FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
+;     FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
+;     FrameStyle <BLACK, GRAY_BG, 0cdh, 0bah, 0c9h, 0bbh, 0c8h, 0bch>
 
 ;================================================================================
 
-end Start
+end     Start
