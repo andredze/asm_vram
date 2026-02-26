@@ -31,3 +31,4 @@ Draw a frame with pink hearts, size=30*7 with text "Privet, Mir!"
 ```powershell
     vram.com 1 30 7 Privet, Mir!
 ```
+![example](https://github.com/andredze/asm_vram/example.png)
