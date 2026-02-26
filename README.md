@@ -1,6 +1,7 @@
 # Frame
 
-Program draws an animation of a frame pulsing with text in center of the screen
+Program draws an animation of a frame pulsing with text in center of the screen.
+
 Supposed to be ran on DOSBox
 
 # Build program
