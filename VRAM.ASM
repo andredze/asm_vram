@@ -8,7 +8,7 @@ locals @@
 ;--------------------------------------------------------------------------------
 
 MIN_FRAME_SIZE      equ 3
-FS_STYLES_COUNT     equ 4
+FS_STYLES_COUNT     equ 5
 
 RESET_SYMBOL        equ 0720h
 FRAME_ANIM_ITERS    equ 3
@@ -572,10 +572,10 @@ GetFrameLeftUpperCornerPos endp
 ; Short:   Draws a centered const size frame
 ; Exp:     DF = 0
 ; In:      push in stack in order:
-;          [3] = position of left upper corner of a frame (DI)
-;          [2] = frame width (BX)
-;          [1] = frame height (DX)
 ;          [0] --> frame style format (SI)
+;          [1] = frame height (DX)
+;          [2] = frame width (BX)
+;          [3] = position of left upper corner of a frame (DI)
 ; Out:     -
 ; Destroy: AX, CX, DI
 ; Note:    add sp, 8 after usage
@@ -937,6 +937,20 @@ FrameStylesTable label FrameStyle
         (0c1h        + BLUE    * 100h),  \
         (0c1h        + BLUE    * 100h),  \
         (0c1h        + BLUE    * 100h)>
+
+;------------------------------------
+; [4] = funny faces
+    FrameStyle <                         \
+        (              4eh    * 100h),  \
+        (              4eh    * 100h),  \
+        (02h         + 4eh    * 100h),  \
+        (01h         + 4eh    * 100h),  \
+        (02h         + 4eh    * 100h),  \
+        (02h         + 4eh    * 100h),  \
+        (02h         + 4eh    * 100h),  \
+        (02h         + 4eh    * 100h),  \
+        (01h         + 4eh    * 100h),  \
+        (02h         + 4eh    * 100h)>
 
 ;================================================================================
 
