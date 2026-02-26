@@ -138,7 +138,9 @@ AnimationLoop proc
         call DrawScreen
         pop bp si cx ax
 
+        push bx cx
         call WaitTime
+        pop cx bx
 
         add bx, [AnimationStep]
         add dx, [AnimationStep]
@@ -238,16 +240,14 @@ ClearScreen proc
 ClearScreen endp
 
 ;--------------------------------------------------------------------------------
-; Short:   Waits 1 second by making loops
+; Short:   Waits some time by making loops
 ; Exp:     -
 ; In:      -
 ; Out:     -
-; Destroy: -
+; Destroy: BX CX
 ;--------------------------------------------------------------------------------
 
 WaitTime proc
-
-    push cx bx
 
     mov bx, 2
 
@@ -264,8 +264,6 @@ WaitTime proc
     dec bx
     cmp bx, 0
     jge @@NextBigLoop
-
-    pop bx cx
 
     ret
 WaitTime endp
