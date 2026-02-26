@@ -71,33 +71,56 @@ Main proc
 
     call GetCmdLine
 
+    ; push args in direct order (pascal type)
+    push cx si
     call ParseCmdLine
+    ; stack was returned to it's state by the function (pascal type)
 
     call GetFrameStyle
 
+    ; push args in reversed order (c-decl type)
+    push si dx cx bx ax
     call DrawAnimation
+    ; have to return stack back after pushes (c-decl type)
+    add sp, 10
 
     ret
 Main endp
 
 ;--------------------------------------------------------------------------------
+;                           C-DECL TYPE
 ; Short:   Draws animation of a frame growing and shredding
 ; Exp:     -
-; In:      AX --> FrameStyle struct
-;          BX = starting frame width
-;          CX = text length
-;          DX = starting frame height
-;          SI --> text
+; In:      push in stack in reverse order (first arg pushed last):
+;          [4] --> FrameStyle struct    (AX)
+;          [3] = starting frame width   (BX)
+;          [2] = text length            (CX)
+;          [1] = starting frame height  (DX)
+;          [0] --> text                 (SI)
 ; Out:     -
 ; Destroy: AX, SI, DI
+; Note: have to add 10 to sp after usage
 ;--------------------------------------------------------------------------------
 
 DrawAnimation proc
 
     push bp
+    mov bp, sp
+
+    ; --> FrameStyle struct
+    mov ax, [bp + 4]
+    ; starting frame width
+    mov bx, [bp + 6]
+    ; text length
+    mov cx, [bp + 8]
+    ; starting frame height
+    mov dx, [bp + 10]
+    ; --> text
+    mov si, [bp + 12]
 
     xchg si, ax
 
+    ; bp will used for iterations
     mov bp, FRAME_ANIM_ITERS
 
     mov word ptr [AnimationStep], 2
@@ -171,10 +194,7 @@ DrawScreen proc
 
     ; save values
     push ax si
-    ; arguments
-    push bx dx
     call GetFrameLeftUpperCornerPos
-    ; no need to return sp --> pascal type function
     pop si ax
 
 ;------------------------------------
@@ -204,10 +224,7 @@ DrawScreen proc
 ;------------------------------------
     push di si
 
-    push si dx bx di
     call DrawFrame
-    ; have to return sp --> c_decl type function
-    add sp, 8
 
     pop si di
 ;------------------------------------
@@ -294,10 +311,12 @@ GetCmdLine proc
 GetCmdLine endp
 
 ;--------------------------------------------------------------------------------
+;                           PASCAL TYPE
 ; Short:   Parses cmd line into text, its length, frame style, frame size
 ; Exp:     -
-; In:      CX = CmdTailLen
-;          SI = &CmdTail
+; In:      push in stack in order:
+;          [0] = CmdTailLen (CX)
+;          [1] --> CmdTail  (SI)
 ; Out:     SI = &Text
 ;          AX = FrameStyle
 ;          BX = FrameWidth
@@ -307,6 +326,14 @@ GetCmdLine endp
 ;--------------------------------------------------------------------------------
 
 ParseCmdLine proc
+
+    push bp
+    mov bp, sp
+
+    ; --> CmdTail
+    mov si, [bp + 4]
+    ; CmdTailLen
+    mov cx, [bp + 6]
 
     call SkipSpaces
 
@@ -349,7 +376,11 @@ ParseCmdLine proc
     ; get FrameStyle index
     pop ax
 
-    ret
+    pop bp
+
+    ; return and get stack back to it's state
+    ; (add 4 for 2 arguments of 2 bytes)
+    ret 4
 ParseCmdLine endp
 
 ;--------------------------------------------------------------------------------
@@ -523,23 +554,15 @@ GetFrameStyle proc
 GetFrameStyle endp
 
 ;--------------------------------------------------------------------------------
-;                       PASCAL TYPE
 ; Short:   moves DI to the frame left upper corner
 ; Exp:     DI = 0 (start of vram)
-; In:      push in stack in order:
-;          [0] = frame width  (BX)
-;          [1] = frame height (DX)
+; In:      BX = frame width
+;          DX = frame height
 ; Out:     DI = lu corner pos
 ; Destroy: AX, SI
 ;--------------------------------------------------------------------------------
 
 GetFrameLeftUpperCornerPos proc
-
-    push bp
-    mov bp, sp
-
-    mov bx, [bp + 6]
-    mov dx, [bp + 4]
 
     ; di = center of the screen
     mov di, (SCREEN_WIDTH * 2 * (SCREEN_HEIGHT / 2) + SCREEN_WIDTH)
@@ -561,34 +584,21 @@ GetFrameLeftUpperCornerPos proc
 
     pop dx
 
-    pop bp
-    ret 4
+    ret
 GetFrameLeftUpperCornerPos endp
 
 ;--------------------------------------------------------------------------------
-;                   C-DECL TYPE
 ; Short:   Draws a centered const size frame
 ; Exp:     DF = 0
-; In:      push in stack in order:
-;          [0] --> frame style format (SI)
-;          [1] = frame height (DX)
-;          [2] = frame width (BX)
-;          [3] = position of left upper corner of a frame (DI)
+; In:      SI --> frame style format
+;          DX = frame height
+;          BX = frame width
+;          DI = position of left upper corner of a frame
 ; Out:     -
 ; Destroy: AX, CX, DI
-; Note:    add sp, 8 after usage
 ;--------------------------------------------------------------------------------
 
 DrawFrame proc
-
-    push bp
-    mov bp, sp
-
-    ; get arguments from stack
-    mov di, [bp + 4]
-    mov bx, [bp + 6]
-    mov dx, [bp + 8]
-    mov si, [bp + 10]
 
     ; save lu corner pos in stack
     push di
@@ -652,7 +662,6 @@ DrawFrame proc
     mov ax, [si + RVertLine]
     call DrawVerticalLine
 
-    pop bp
     ret
 DrawFrame endp
 
