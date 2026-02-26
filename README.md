@@ -1,6 +1,7 @@
 # Frame
 
-Program that draws a frame animation with text in center of the screen
+Program that draws an animation of a frame pulsing with text in center of the screen
+Supposed to be ran on DOSBox
 
 # Build program
 ```powershell
