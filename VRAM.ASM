@@ -85,6 +85,7 @@ Main proc
     add sp, 10
 
     ret
+
 Main endp
 
 ;--------------------------------------------------------------------------------
@@ -134,11 +135,13 @@ DrawAnimation proc
     pop bp
 
     ret
+
 DrawAnimation endp
 
 ;--------------------------------------------------------------------------------
-; Short:   Body for the DrawAnimation function
-; Exp:     [AnimationStep] = increment for size of a frame
+; Short:   Body for the DrawAnimation function,
+;          draws an animation of a frame growing/shredding (depends on AnimationStep)
+; Exp:     [AnimationStep] = increment for size of a frame (scan be negative)
 ; In:      BP = number of iterations
 ;          AX --> FrameStyle struct
 ;          BX = starting frame width
@@ -157,7 +160,6 @@ AnimationLoop proc
         pop di cx ax
 
         push ax cx si bp
-        xor bp, bp
         call DrawScreen
         pop bp si cx ax
 
@@ -173,6 +175,7 @@ AnimationLoop proc
     jge @@LoopNext
 
     ret
+
 AnimationLoop endp
 
 ;--------------------------------------------------------------------------------
@@ -234,6 +237,7 @@ DrawScreen proc
     call DrawFrameBackground
 
     ret
+
 DrawScreen endp
 
 ;--------------------------------------------------------------------------------
@@ -254,6 +258,7 @@ ClearScreen proc
     rep stosw
 
     ret
+
 ClearScreen endp
 
 ;--------------------------------------------------------------------------------
@@ -283,6 +288,7 @@ WaitTime proc
     jge @@NextBigLoop
 
     ret
+
 WaitTime endp
 
 ;--------------------------------------------------------------------------------
@@ -308,6 +314,7 @@ GetCmdLine proc
     mov si, CMD_TAIL_INDEX
 
     ret
+
 GetCmdLine endp
 
 ;--------------------------------------------------------------------------------
@@ -381,6 +388,7 @@ ParseCmdLine proc
     ; return and get stack back to it's state
     ; (add 4 for 2 arguments of 2 bytes)
     ret 4
+
 ParseCmdLine endp
 
 ;--------------------------------------------------------------------------------
@@ -413,6 +421,7 @@ SkipSpaces proc
     pop bx
 
     ret
+
 SkipSpaces endp
 
 ;--------------------------------------------------------------------------------
@@ -431,6 +440,7 @@ MakeEven proc
     @@EvenLen:
 
     ret
+
 MakeEven endp
 
 ;--------------------------------------------------------------------------------
@@ -485,6 +495,7 @@ GetInt proc
     @@End:
 
     ret
+
 GetInt endp
 
 ;--------------------------------------------------------------------------------
@@ -513,6 +524,7 @@ IsDigit proc
     @@NotDigit:
 
     ret
+
 IsDigit endp
 
 ;--------------------------------------------------------------------------------
@@ -551,6 +563,7 @@ GetFrameStyle proc
     pop bx dx
 
     ret
+
 GetFrameStyle endp
 
 ;--------------------------------------------------------------------------------
@@ -585,6 +598,7 @@ GetFrameLeftUpperCornerPos proc
     pop dx
 
     ret
+
 GetFrameLeftUpperCornerPos endp
 
 ;--------------------------------------------------------------------------------
@@ -663,6 +677,7 @@ DrawFrame proc
     call DrawVerticalLine
 
     ret
+
 DrawFrame endp
 
 ;--------------------------------------------------------------------------------
@@ -683,6 +698,7 @@ DrawHorizontalLine proc
     rep stosw
 
     ret
+
 DrawHorizontalLine endp
 
 ;--------------------------------------------------------------------------------
@@ -707,6 +723,7 @@ DrawVerticalLine proc
     loop @@Next
 
     ret
+
 DrawVerticalLine endp
 
 ;--------------------------------------------------------------------------------
@@ -735,6 +752,7 @@ DrawCenteredText proc
     @@End:
 
     ret
+
 DrawCenteredText endp
 
 ;--------------------------------------------------------------------------------
@@ -787,6 +805,7 @@ SetWritingStartPos proc
     sub di, bx
 
     ret
+
 SetWritingStartPos endp
 
 ;--------------------------------------------------------------------------------
@@ -810,6 +829,7 @@ LoadText proc
     loop @@Next
 
     ret
+
 LoadText endp
 
 ;--------------------------------------------------------------------------------
@@ -861,6 +881,7 @@ DrawFrameBackground proc
     pop bp
 
     ret
+
 DrawFrameBackground endp
 
 ;--------------------------------------------------------------------------------
@@ -879,6 +900,7 @@ Exit proc
     int 21h
 
     ret
+
 Exit endp
 
 ;--------------------------------------------------------------------------------
@@ -947,7 +969,7 @@ FrameStylesTable label FrameStyle
 
 ;------------------------------------
 ; [4] = funny faces
-    FrameStyle <                         \
+    FrameStyle <                        \
         (              4eh    * 100h),  \
         (              4eh    * 100h),  \
         (02h         + 4eh    * 100h),  \
