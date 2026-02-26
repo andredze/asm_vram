@@ -2,11 +2,17 @@
 
 Program that draws a frame animation with text in center of the screen
 
+# Build program
+```powershell
+    tasm /la vram.asm
+    tlink /t vram.obj
+```
+
 # Run program
 
 ## Format
 ```powershell
-    frame.com <FrameStyle> <FrameWidth> <FrameHeight> <YourText>
+    vram.com <FrameStyle> <FrameWidth> <FrameHeight> <YourText>
 ```
 
 ## Frame styles
@@ -21,5 +27,5 @@ Program that draws a frame animation with text in center of the screen
 ## Example
 Draw a frame with pink hearts, size=30*7 with text "Privet, Mir!"
 ```powershell
-    frame.com 1 30 7 Privet, Mir!
+    vram.com 1 30 7 Privet, Mir!
 ```
