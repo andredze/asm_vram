@@ -12,7 +12,7 @@ FS_STYLES_COUNT     equ 5
 
 RESET_SYMBOL        equ 0720h
 FRAME_ANIM_ITERS    equ 3
-FS_STYLE_SIZE       equ 20
+FS_STYLE_SIZE       equ 22
 
 CMD_TAIL_LEN_INDEX  equ 80h
 CMD_TAIL_INDEX      equ 82h
@@ -30,6 +30,7 @@ LU_CORNER           equ 0c9h
 RU_CORNER           equ 0bbh
 LD_CORNER           equ 0c8h
 RD_CORNER           equ 0bch
+SPACE               equ ' '
 
 GRAY_BG             equ 70h
 BLACK               equ 00h
@@ -50,6 +51,7 @@ FrameStyle struc
     UHorizLine          dw ?
     RUCorner            dw ?
     LVertLine           dw ?
+    MHorizLine          dw ?
     RVertLine           dw ?
     LDCorner            dw ?
     DHorizLine          dw ?
@@ -75,8 +77,6 @@ Main proc
     push cx si
     call ParseCmdLine
     ; stack was returned to it's state by the function (pascal type)
-
-    call GetFrameStyle
 
     ; push args in reversed order (c-decl type)
     push si dx cx bx ax
@@ -200,37 +200,24 @@ DrawScreen proc
     call GetFrameLeftUpperCornerPos
     pop si ax
 
-;------------------------------------
-; get text color (prepare args for DrawText)
-    ; save frame style ptr
-    push si
-
-    ; 2nd ax byte = color in vram
-    ; text color
-    push [si + TextColor]
-
-    ; get &Text from ax
-    mov si, ax
-
-    ; get text color
-    pop ax
-
-;------------------------------------
-
-    push bx di
-    call DrawCenteredText
-    pop di bx
-
-    ; get frame style ptr
-    pop si
-
-;------------------------------------
-    push di si
-
+    push ax cx di si
     call DrawFrame
+    pop si di cx ax
 
-    pop si di
-;------------------------------------
+; get text color (prepare args for DrawText)
+    push di si dx bx ax
+
+    push bx
+    ; BX = frame style
+    mov bx, si
+    ; SI --> text
+    mov si, ax
+    ; AX = color
+    mov ax, [bx + TextColor]
+    pop bx
+
+    call DrawCenteredText
+    pop ax bx dx si di
 
     ; BackGround Color
     mov ax, [si + BGColor]
@@ -303,6 +290,7 @@ WaitTime endp
 GetCmdLine proc
 
     ; CX = CmdTailLen - 1 (for the last \r)
+    xor ch, ch
     mov si, CMD_TAIL_LEN_INDEX
     mov byte ptr cl, [si]
 
@@ -348,6 +336,19 @@ ParseCmdLine proc
     call GetInt
     call SkipSpaces
 
+    cmp ax, 5
+    jl @@NotCustomFrameStyle
+
+    call ParseCustomFrameStyle
+    mov ax, offset CustomFrameStyle
+    call SkipSpaces
+
+    jmp @@ParseCont
+
+    @@NotCustomFrameStyle:
+    call GetFrameStyle
+
+    @@ParseCont:
     ; save FrameStyle index
     push ax
 
@@ -359,7 +360,6 @@ ParseCmdLine proc
     jg @@FrameWidthIsOk
         mov bx, MIN_FRAME_SIZE
     @@FrameWidthIsOk:
-
     call SkipSpaces
 
     ; Get FrameHeight
@@ -567,6 +567,40 @@ GetFrameStyle proc
 GetFrameStyle endp
 
 ;--------------------------------------------------------------------------------
+; Short:   Puts symbols from terminal into a struct for custom frame style
+; In:      DS:[SI] --> FrameStyle symbols
+; Out:     DI      --> CustomFrameStyle
+;          DS:[SI] --> symbol after frame style in cmd
+;          CX = end of CmdLine len
+; Destroy: AL, SI, DI
+;--------------------------------------------------------------------------------
+
+ParseCustomFrameStyle proc
+
+    push cx
+
+    mov di, offset CustomFrameStyle
+    add di, LuCorner
+
+    mov cx, 9
+
+    @@Next:
+        mov byte ptr al, ds:[si]
+        mov byte ptr ds:[di], al
+        add di, 2
+        inc si
+
+    loop @@Next
+
+    pop cx
+
+    sub cx, 9
+
+    ret
+
+ParseCustomFrameStyle endp
+
+;--------------------------------------------------------------------------------
 ; Short:   moves DI to the frame left upper corner
 ; Exp:     DI = 0 (start of vram)
 ; In:      BX = frame width
@@ -609,72 +643,53 @@ GetFrameLeftUpperCornerPos endp
 ;          BX = frame width
 ;          DI = position of left upper corner of a frame
 ; Out:     -
-; Destroy: AX, CX, DI
+; Destroy: AX, CX, SI, DI
 ;--------------------------------------------------------------------------------
 
 DrawFrame proc
 
+; Draw top line
+;------------------------------------
     ; save lu corner pos in stack
     push di
 
-    ; Draw Left Upper corner
-    mov ax, [si + LuCorner]
-    stosw
-
-    ; AX = upper horizontal line symbol
-    mov ax, [si + UHorizLine]
+    ; get top symbols
+    add si, LuCorner
     call DrawHorizontalLine
 
-    ; Draw Right Upper corner
-    mov ax, [si + RuCorner]
-    stosw
-
-    push si
-
-    ; move back to the left side
-    ; -FRAME_WIDTH * 2
-    mov si, bx
-    shl si, 1
-    sub di, si
-
-    ; and go to newline to skip corner
-    add di, (SCREEN_WIDTH * 2)
-
-    pop si
-
-    ; AX = left vertical line symbol
-    mov ax, [si + LVertLine]
-    call DrawVerticalLine
-
-    ; Draw Left Down corner
-    mov ax, [si + LdCorner]
-    stosw
-
-    ; AX = down horizontal line symbol
-    mov ax, [si + DHorizLine]
-    call DrawHorizontalLine
-
-    ; Draw Right Down corner
-    mov ax, [si + RdCorner]
-    stosw
-
-    ; get lu corner pos
     pop di
 
-    ; move up below the right corner
-    push bx
+    ; new line
+    add di, (SCREEN_WIDTH * 2)
+;------------------------------------
 
-    ; bx = shift
-    ; di = lu_corner_pos + (2 * (FRAME_WIDTH + SCREEN_WIDTH - 1))
-    add bx, (SCREEN_WIDTH - 1)
-    shl bx, 1
-    add di, bx
+; Draw middle part
+;------------------------------------
+    ; get middle symbols
+    ; SI already points to the middle symbols,
+    ; as they are stored continuously
 
-    pop bx
+    ; cx = middle part height (frame height - 2)
+    mov cx, dx
+    sub cx, 2
 
-    ; AX = right vertical line symbol
-    mov ax, [si + RVertLine]
-    call DrawVerticalLine
+    @@Next:
+        push cx si di
+        call DrawHorizontalLine
+        pop di si cx
+
+        ; new line
+        add di, (SCREEN_WIDTH * 2)
+    loop @@Next
+;------------------------------------
+
+; Draw bottom line
+;------------------------------------
+    ; get bottom symbols
+    ; shift for SI = add 2 bytes * 3 symbols are in 1 line
+    add si, (2 * 03d)
+    call DrawHorizontalLine
+;------------------------------------
 
     ret
 
@@ -684,47 +699,42 @@ DrawFrame endp
 ; Short:   Draws horizontal frame line in vram
 ; Exp:     ES = Video Segment
 ;          DF = 0
-; In:      DI = start pos to draw line
+; In:      SI --> data with line symbols [left, middle, right]
+;                 (of 2 bytes: ascii, color)
+;          DI = start pos to draw line
 ;          BX = frame width
-;          AX = symbol to write line with
 ; Out:     DI = end pos of newly drown line
-; Destroy: CX
+; Destroy: AX, CX, SI, DI
 ;--------------------------------------------------------------------------------
 
 DrawHorizontalLine proc
 
+; draw left symbol
+    ; ds[si] = left symbol
+    ; ax = ds:[si += 2]
+    lodsw
+    ; es:[di += 2] = ax
+    stosw
+
+; draw middle part
+    ; ds[si] = middle symbol
+    ; ax = ds:[si += 2]
+    lodsw
+    ; cx = FRAME_WIDTH - 2 for corners
     mov cx, bx
     sub cx, 2
+    ; while (cx--) es:[di += 2] = ax
     rep stosw
+
+    ; ds[si] = right symbol
+    ; ax = ds:[si += 2]
+    lodsw
+    ; es:[di += 2] = ax
+    stosw
 
     ret
 
 DrawHorizontalLine endp
-
-;--------------------------------------------------------------------------------
-; Short:   Draws vertical frame line in vram
-; Exp:     ES = Video Segment
-;          DF = 0
-; In:      DI = start pos to draw line
-;          DX = frame height
-;          AX = symbol to write line with
-; Out:     DI = end pos of newly drown line
-; Destroy: CX
-;--------------------------------------------------------------------------------
-
-DrawVerticalLine proc
-
-    mov cx, dx
-    sub cx, 2
-
-    @@Next:
-        mov es:[di], ax
-        add di, (SCREEN_WIDTH * 2)
-    loop @@Next
-
-    ret
-
-DrawVerticalLine endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Prints cmd line in vram in the center of the frame
@@ -909,6 +919,19 @@ Exit endp
 
 AnimationStep dw ?
 
+CustomFrameStyle FrameStyle <           \
+        (             BRT_RED * 100h),  \
+        (             GRAY_BG * 100h),  \
+        (LU_CORNER  + BRT_RED * 100h),  \
+        (HORIZ_LINE + BRT_RED * 100h),  \
+        (RU_CORNER  + BRT_RED * 100h),  \
+        (VERT_LINE  + BRT_RED * 100h),  \
+        (SPACE      + WHITE   * 100h),  \
+        (VERT_LINE  + BRT_RED * 100h),  \
+        (LD_CORNER  + BRT_RED * 100h),  \
+        (HORIZ_LINE + BRT_RED * 100h),  \
+        (RD_CORNER  + BRT_RED * 100h)>
+
 FrameStylesTable label FrameStyle
 
 ;------------------------------------
@@ -920,6 +943,7 @@ FrameStylesTable label FrameStyle
         (HORIZ_LINE + BRT_RED * 100h),  \
         (RU_CORNER  + BRT_RED * 100h),  \
         (VERT_LINE  + BRT_RED * 100h),  \
+        (SPACE      + BRT_RED * 100h),  \
         (VERT_LINE  + BRT_RED * 100h),  \
         (LD_CORNER  + BRT_RED * 100h),  \
         (HORIZ_LINE + BRT_RED * 100h),  \
@@ -927,17 +951,18 @@ FrameStylesTable label FrameStyle
 
 ;------------------------------------
 ; [1] = pink
-    FrameStyle <                   \
-        (        WHITE * 100h),    \
-        (        PINK_BG * 100h),  \
-        (HEART + PINK * 100h),     \
-        (HEART + PINK * 100h),     \
-        (HEART + PINK * 100h),     \
-        (HEART + PINK * 100h),     \
-        (HEART + PINK * 100h),     \
-        (HEART + PINK * 100h),     \
-        (HEART + PINK * 100h),     \
-        (HEART + PINK * 100h)>
+    FrameStyle <                    \
+        (        WHITE * 100h),     \
+        (        PINK_BG * 100h),   \
+        (HEART + WHITE * 100h),     \
+        (HEART + WHITE * 100h),     \
+        (HEART + WHITE * 100h),     \
+        (HEART + WHITE * 100h),     \
+        (HEART + PINK * 100h),      \
+        (HEART + WHITE * 100h),     \
+        (HEART + WHITE * 100h),     \
+        (HEART + WHITE * 100h),     \
+        (HEART + WHITE * 100h)>
 
 ;------------------------------------
 ; [2] = cursed
@@ -948,6 +973,7 @@ FrameStylesTable label FrameStyle
         (06h        + BRT_RED * 100h),  \
         (0fh        + BRT_RED * 100h),  \
         (0ceh       + BRT_RED * 100h),  \
+        ('0'        + BRT_RED * 100h),  \
         (0d8h       + BRT_RED * 100h),  \
         (04h        + BRT_RED * 100h),  \
         (0feh       + BRT_RED * 100h),  \
@@ -962,6 +988,7 @@ FrameStylesTable label FrameStyle
         (0c2h        + BLUE    * 100h),  \
         (0c1h        + BLUE    * 100h),  \
         (0c1h        + BLUE    * 100h),  \
+        (SPACE      + BRT_RED * 100h),  \
         (0c1h        + BLUE    * 100h),  \
         (0c1h        + BLUE    * 100h),  \
         (0c1h        + BLUE    * 100h),  \
@@ -976,6 +1003,7 @@ FrameStylesTable label FrameStyle
         (01h         + 4eh    * 100h),  \
         (02h         + 4eh    * 100h),  \
         (02h         + 4eh    * 100h),  \
+        (SPACE      + BRT_RED * 100h),  \
         (02h         + 4eh    * 100h),  \
         (02h         + 4eh    * 100h),  \
         (01h         + 4eh    * 100h),  \
