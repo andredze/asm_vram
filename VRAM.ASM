@@ -641,65 +641,6 @@ GetFrameLeftUpperCornerPos proc
 GetFrameLeftUpperCornerPos endp
 
 ;--------------------------------------------------------------------------------
-; Short:   Draws a centered const size frame
-; Exp:     DF = 0
-; In:      SI --> frame style format
-;          DX = frame height
-;          BX = frame width
-;          DI = position of left upper corner of a frame
-; Destroy: AX, CX, SI, DI
-;--------------------------------------------------------------------------------
-
-DrawFrame proc
-
-; Draw top line
-;------------------------------------
-    ; save lu corner pos in stack
-    push di
-
-    ; get top symbols
-    add si, LuCorner
-    call DrawHorizontalLine
-
-    pop di
-
-    ; new line
-    add di, (SCREEN_WIDTH * 2)
-;------------------------------------
-
-; Draw middle part
-;------------------------------------
-    ; get middle symbols
-    ; SI already points to the middle symbols,
-    ; as they are stored continuously
-
-    ; cx = middle part height (frame height - 2)
-    mov cx, dx
-    sub cx, 2
-
-    @@Next:
-        push cx si di
-        call DrawHorizontalLine
-        pop di si cx
-
-        ; new line
-        add di, (SCREEN_WIDTH * 2)
-    loop @@Next
-;------------------------------------
-
-; Draw bottom line
-;------------------------------------
-    ; get bottom symbols
-    ; shift for SI = add 2 bytes * 3 symbols are in 1 line
-    add si, (2 * 03d)
-    call DrawHorizontalLine
-;------------------------------------
-
-    ret
-
-DrawFrame endp
-
-;--------------------------------------------------------------------------------
 ; Short:   Draws horizontal frame line in vram
 ; Exp:     ES = Video Segment
 ;          DF = 0
@@ -711,7 +652,7 @@ DrawFrame endp
 ; Destroy: AX, CX, SI, DI
 ;--------------------------------------------------------------------------------
 
-DrawHorizontalLine proc
+mDrawHorizontalLine macro
 
 ; draw left symbol
     ; ds[si] = left symbol
@@ -737,9 +678,66 @@ DrawHorizontalLine proc
     ; es:[di += 2] = ax
     stosw
 
+    endm
+
+;--------------------------------------------------------------------------------
+; Short:   Draws a centered const size frame
+; Exp:     DF = 0
+; In:      SI --> frame style format
+;          DX = frame height
+;          BX = frame width
+;          DI = position of left upper corner of a frame
+; Destroy: AX, CX, SI, DI
+;--------------------------------------------------------------------------------
+
+DrawFrame proc
+
+; Draw top line
+;------------------------------------
+    ; save lu corner pos in stack
+    push di
+
+    ; get top symbols
+    add si, LuCorner
+    mDrawHorizontalLine
+
+    pop di
+
+    ; new line
+    add di, (SCREEN_WIDTH * 2)
+;------------------------------------
+
+; Draw middle part
+;------------------------------------
+    ; get middle symbols
+    ; SI already points to the middle symbols,
+    ; as they are stored continuously
+
+    ; cx = middle part height (frame height - 2)
+    mov cx, dx
+    sub cx, 2
+
+    @@Next:
+        push cx si di
+        mDrawHorizontalLine
+        pop di si cx
+
+        ; new line
+        add di, (SCREEN_WIDTH * 2)
+    loop @@Next
+;------------------------------------
+
+; Draw bottom line
+;------------------------------------
+    ; get bottom symbols
+    ; shift for SI = add 2 bytes * 3 symbols are in 1 line
+    add si, (2 * 03d)
+    mDrawHorizontalLine
+;------------------------------------
+
     ret
 
-DrawHorizontalLine endp
+DrawFrame endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Prints cmd line in vram in the center of the frame
