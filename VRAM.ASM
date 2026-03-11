@@ -868,17 +868,17 @@ FrameStylesTable label FrameStyle
 ;------------------------------------
 ; [1] = normal
 
-RegsFrameStyle FrameStyle <                     \
-    (             (PINK    + GRAY_BG) * 100h),  \
-    (LU_CORNER  + (BRT_RED + GRAY_BG) * 100h),  \
-    (HORIZ_LINE + (BRT_RED + GRAY_BG) * 100h),  \
-    (RU_CORNER  + (BRT_RED + GRAY_BG) * 100h),  \
-    (VERT_LINE  + (BRT_RED + GRAY_BG) * 100h),  \
-    (' '        + (BRT_RED + GRAY_BG) * 100h),  \
-    (VERT_LINE  + (BRT_RED + GRAY_BG) * 100h),  \
-    (LD_CORNER  + (BRT_RED + GRAY_BG) * 100h),  \
-    (HORIZ_LINE + (BRT_RED + GRAY_BG) * 100h),  \
-    (RD_CORNER  + (BRT_RED + GRAY_BG) * 100h)>
+    FrameStyle <                                    \
+        (             (PINK    + GRAY_BG) * 100h),  \
+        (LU_CORNER  + (BRT_RED + GRAY_BG) * 100h),  \
+        (HORIZ_LINE + (BRT_RED + GRAY_BG) * 100h),  \
+        (RU_CORNER  + (BRT_RED + GRAY_BG) * 100h),  \
+        (VERT_LINE  + (BRT_RED + GRAY_BG) * 100h),  \
+        (' '        + (BRT_RED + GRAY_BG) * 100h),  \
+        (VERT_LINE  + (BRT_RED + GRAY_BG) * 100h),  \
+        (LD_CORNER  + (BRT_RED + GRAY_BG) * 100h),  \
+        (HORIZ_LINE + (BRT_RED + GRAY_BG) * 100h),  \
+        (RD_CORNER  + (BRT_RED + GRAY_BG) * 100h)>
 
 ;------------------------------------
 ; [2] = pink
