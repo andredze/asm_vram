@@ -1,4 +1,5 @@
 .model tiny
+JUMPS
 .code
 
 org 100h
@@ -16,7 +17,7 @@ FS_STYLES_COUNT     equ 5
 
 RESET_SYMBOL        equ 0720h
 FRAME_ANIM_ITERS    equ 3
-FS_STYLE_SIZE       equ 22
+FS_STYLE_SIZE       equ 20
 
 CMD_TAIL_LEN_INDEX  equ 80h
 CMD_TAIL_INDEX      equ 82h
@@ -50,7 +51,6 @@ BLUE_BG             equ 10h
 
 FrameStyle struc
     TextColor           dw ?
-    BGColor             dw ?
     LUCorner            dw ?
     UHorizLine          dw ?
     RUCorner            dw ?
@@ -69,6 +69,179 @@ Start:
     jmp  Exit
 
 ;=================================================================================
+
+;--------------------------------------------------------------------------------
+; Short:   increments if number is odd
+; In:      register = any number
+; Out:     register = even number
+;--------------------------------------------------------------------------------
+
+mMakeEven macro register
+
+    test register, 01h
+    jz $+3 ; @@EvenLen
+    inc register
+; @@EvenLen:
+
+    endm
+
+;--------------------------------------------------------------------------------
+; Short:   Clears the screen
+; Exp:     DF = 0
+; Destroy: AX, CX, DI
+;--------------------------------------------------------------------------------
+
+mClearScreen macro
+
+    ; AX = space with gray color ob black bg
+    mov ax, RESET_SYMBOL
+    xor di, di
+    mov cx, (SCREEN_WIDTH * SCREEN_HEIGHT)
+
+    rep stosw
+
+    endm
+
+;--------------------------------------------------------------------------------
+; Short:   moves DI to the frame left upper corner
+; Exp:     DI = 0 (start of vram)
+; In:      BX = frame width
+;          DX = frame height
+; Out:     DI = lu corner pos
+; Destroy: AX, SI
+;--------------------------------------------------------------------------------
+
+mGetFrameLeftUpperCornerPos macro
+
+    ; di = center of the screen
+    mov di, (SCREEN_WIDTH * 2 * (SCREEN_HEIGHT / 2) + SCREEN_WIDTH)
+
+    ; move left half a frame
+    sub di, bx
+
+    ; move up half a frame
+    push dx
+
+    ; if height is odd --> add one to divide by 2
+    mov ax, dx
+    mMakeEven ax
+
+    mov si, SCREEN_WIDTH
+    mul si
+
+    sub di, ax
+
+    pop dx
+
+    endm
+
+;--------------------------------------------------------------------------------
+; Short:   Draws frame, it's bg and text on the screen
+; In:      BX = frame width
+;          DX = frame height
+;          CX = text length
+;          SI --> frame style
+;          AX --> text
+; Destroy: AX, BX, CX, SI, DI
+;--------------------------------------------------------------------------------
+
+mDrawScreen macro
+
+    ; di = 0
+    xor di, di
+
+    ; save values
+    push ax si
+    mGetFrameLeftUpperCornerPos
+    pop si ax
+
+    push ax cx di si
+    call DrawFrame
+    pop si di cx ax
+
+; get text color (prepare args for DrawText)
+
+    push bx
+    ; BX = frame style
+    mov bx, si
+    ; SI --> text
+    mov si, ax
+    ; AX = color
+    mov ax, [bx + TextColor]
+    pop bx
+
+    call DrawCenteredText
+
+    endm
+
+;--------------------------------------------------------------------------------
+; Short:   Waits some time by making loops
+; Destroy: BX CX
+;--------------------------------------------------------------------------------
+
+mWaitTime macro
+    local @@Next, @@NextBigLoop
+
+    mov bx, 2
+
+    @@NextBigLoop:
+
+    xor cx, cx
+    dec cx
+
+    @@Next:
+        inc cx
+        dec cx
+    loop @@Next
+
+    dec bx
+    cmp bx, 0
+    jge @@NextBigLoop
+
+    endm
+
+;--------------------------------------------------------------------------------
+; Short:   Body for the DrawAnimation function,
+;          draws an animation of a frame growing/shredding (depends on AnimationStep)
+; In:      Animation step = increment for size of a frame (can be negative)
+;          Iterations     = number of iterations
+;          AX --> FrameStyle struct
+;          BX = starting frame width
+;          CX = text length
+;          DX = starting frame height
+;          SI --> text
+; Destroy: BX, DX, BP, DI
+;--------------------------------------------------------------------------------
+
+mAnimationLoop macro AnimationStep, Iterations
+    local @@LoopNext
+
+    ; bp will used for iterations
+    mov bp, FRAME_ANIM_ITERS
+
+    @@LoopNext:
+        push ax cx di
+        mClearScreen
+        pop di cx ax
+
+        push ax bx cx si bp
+        mDrawScreen
+        pop bp si cx bx ax
+
+        push bx cx
+        mWaitTime
+        pop cx bx
+
+        add bx, AnimationStep
+        add dx, AnimationStep
+
+    dec bp
+    cmp bp, 0
+    jge @@LoopNext
+
+    endm
+
+;================================================================================
 
 Main proc
 
@@ -123,149 +296,25 @@ DrawAnimation proc
 
     xchg si, ax
 
-    ; bp will used for iterations
-    mov bp, FRAME_ANIM_ITERS
+    ; DI = count of frame pulses
+    mov di, 2
 
-    mov word ptr [AnimationStep], 2
-    call AnimationLoop
+@@Next:
+    push di
+    mAnimationLoop  2, FRAME_ANIM_ITERS
+    mAnimationLoop -2, FRAME_ANIM_ITERS
+    pop di
 
-    mov bp, FRAME_ANIM_ITERS
+    dec di
 
-    mov word ptr [AnimationStep], -2
-    call AnimationLoop
+    cmp di, 0
+    jne @@Next
 
     pop bp
 
     ret
 
 DrawAnimation endp
-
-;--------------------------------------------------------------------------------
-; Short:   Body for the DrawAnimation function,
-;          draws an animation of a frame growing/shredding (depends on AnimationStep)
-; Exp:     [AnimationStep] = increment for size of a frame (scan be negative)
-; In:      BP = number of iterations
-;          AX --> FrameStyle struct
-;          BX = starting frame width
-;          CX = text length
-;          DX = starting frame height
-;          SI --> text
-; Destroy: BX, DX, BP, DI
-;--------------------------------------------------------------------------------
-
-AnimationLoop proc
-
-    @@LoopNext:
-        push ax cx di
-        call ClearScreen
-        pop di cx ax
-
-        push ax bx cx si bp
-        call DrawScreen
-        pop bp si cx bx ax
-
-        push bx cx
-        call WaitTime
-        pop cx bx
-
-        add bx, [AnimationStep]
-        add dx, [AnimationStep]
-
-    dec bp
-    cmp bp, 0
-    jge @@LoopNext
-
-    ret
-
-AnimationLoop endp
-
-;--------------------------------------------------------------------------------
-; Short:   Draws frame, it's bg and text on the screen
-; In:      BX = frame width
-;          DX = frame height
-;          CX = text length
-;          SI --> frame style
-;          AX --> text
-; Destroy: AX, BX, CX, SI, DI
-;--------------------------------------------------------------------------------
-
-DrawScreen proc
-
-    ; di = 0
-    xor di, di
-
-    ; save values
-    push ax si
-    call GetFrameLeftUpperCornerPos
-    pop si ax
-
-    push ax cx di si
-    call DrawFrame
-    pop si di cx ax
-
-; get text color (prepare args for DrawText)
-
-    push bx
-    ; BX = frame style
-    mov bx, si
-    ; SI --> text
-    mov si, ax
-    ; AX = color
-    mov ax, [bx + TextColor]
-    pop bx
-
-    ; tail call --> ret of inside function will return from our function
-    jmp DrawCenteredText
-
-    ret
-
-DrawScreen endp
-
-;--------------------------------------------------------------------------------
-; Short:   Clears the screen
-; Exp:     DF = 0
-; Destroy: AX, CX, DI
-;--------------------------------------------------------------------------------
-
-ClearScreen proc
-
-    ; AX = space with gray color ob black bg
-    mov ax, RESET_SYMBOL
-    xor di, di
-    mov cx, (SCREEN_WIDTH * SCREEN_HEIGHT)
-
-    rep stosw
-
-    ret
-
-ClearScreen endp
-
-;--------------------------------------------------------------------------------
-; Short:   Waits some time by making loops
-; Destroy: BX CX
-;--------------------------------------------------------------------------------
-
-WaitTime proc
-
-    mov bx, 2
-
-    @@NextBigLoop:
-
-    xor cx, cx
-    dec cx
-
-    @@Next:
-        inc cx
-        dec cx
-    loop @@Next
-
-    dec bx
-    cmp bx, 0
-    jge @@NextBigLoop
-
-    ret
-
-WaitTime endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Gets cmd line and it's length into registers
@@ -292,6 +341,36 @@ GetCmdLine proc
 GetCmdLine endp
 
 ;--------------------------------------------------------------------------------
+; Short:   skips spaces
+; In:      SI --> &String
+;          CX = StringLen
+; Out:     CX = StringLen - SpacesCount
+;          SI --> first non-space symbol
+;--------------------------------------------------------------------------------
+
+mSkipSpaces macro
+    local @@Check
+
+    push bx
+
+    ; check for 0 and negatives
+    cmp cx, 0
+    jle $+12 ; @@End
+
+    @@Check:
+    mov byte ptr bl, [si]
+    cmp bl, ' '
+    jne $+5 ; @@End
+        inc si
+
+    loop @@Check
+; @@End:
+
+    pop bx
+
+    endm
+
+;--------------------------------------------------------------------------------
 ;                           PASCAL TYPE
 ; Short:   Parses cmd line into text, its length, frame style, frame size
 ; In:      push in stack in order:
@@ -315,11 +394,11 @@ ParseCmdLine proc
     ; CmdTailLen
     mov cx, [bp + 6]
 
-    call SkipSpaces
+    mSkipSpaces
 
     ; Get FrameStyle index
     call GetInt
-    call SkipSpaces
+    mSkipSpaces
     push bx dx
     ; Get FrameStyleStruct ptr
     call GetFrameStyle
@@ -360,9 +439,9 @@ GetFrameSize proc
     cmp bx, MAX_FRAME_WIDTH
     jle @@FrameWidthIsOk
         mov bx, MAX_FRAME_WIDTH
-    @@FrameWidthIsOk:
+@@FrameWidthIsOk:
 
-    call SkipSpaces
+    mSkipSpaces
 
     ; Get FrameHeight
     push bx
@@ -379,65 +458,15 @@ GetFrameSize proc
     jle @@FrameHeightIsOk
         mov bx, MAX_FRAME_HEIGHT
 
-    @@FrameHeightIsOk:
+@@FrameHeightIsOk:
 
-    call SkipSpaces
+    mSkipSpaces
 
-    mov ax, bx
-    call MakeEven
-    mov bx, ax
+    mMakeEven bx
 
     ret
 
 GetFrameSize endp
-
-;--------------------------------------------------------------------------------
-; Short:   skips spaces
-; In:      SI --> &String
-;          CX = StringLen
-; Out:     CX = StringLen - SpacesCount
-;          SI --> first non-space symbol
-;--------------------------------------------------------------------------------
-
-SkipSpaces proc
-
-    push bx
-
-    ; check for 0 and negatives
-    cmp cx, 0
-    jle @@End
-
-    @@Check:
-    mov byte ptr bl, [si]
-    cmp bl, ' '
-    jne @@End
-        inc si
-
-    loop @@Check
-    @@End:
-
-    pop bx
-
-    ret
-
-SkipSpaces endp
-
-;--------------------------------------------------------------------------------
-; Short:   increments if number is odd
-; In:      AX = any number
-; Out:     AX = even number
-;--------------------------------------------------------------------------------
-
-MakeEven proc
-
-    test ax, 01h
-    jz @@EvenLen
-    inc ax
-    @@EvenLen:
-
-    ret
-
-MakeEven endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Gets an integer value from string (until the ' ')
@@ -450,6 +479,7 @@ MakeEven endp
 ;--------------------------------------------------------------------------------
 
 GetInt proc
+    ; ax = 0 by default
     xor ax, ax
 
     ; if StringLen <= 0 --> end
@@ -458,9 +488,6 @@ GetInt proc
 
     ; dx = 0
     xor dx, dx
-
-    ; ax = 0
-    xor ax, ax
 
     @@Next:
         ; dl = curr symbol
@@ -515,7 +542,7 @@ IsDigit proc
     inc bx
     ret
 
-    @@NotDigit:
+@@NotDigit:
 
     ret
 
@@ -535,11 +562,11 @@ GetFrameStyle proc
 
     call ParseCustomFrameStyle
     mov ax, offset CustomFrameStyle
-    call SkipSpaces
+    mSkipSpaces
 
     jmp @@End
 
-    @@DefaultFrameStyle:
+@@DefaultFrameStyle:
 
     ; check index for negatives and overflow
     cmp ax, FS_STYLES_COUNT
@@ -550,10 +577,10 @@ GetFrameStyle proc
 
     jmp @@PossibleIndex
 
-    @@SetDefaultIndex:
+@@SetDefaultIndex:
     mov ax, 01h
 
-    @@PossibleIndex:
+@@PossibleIndex:
 
     ; indexing starts from 0 but styles from 1
     dec ax
@@ -565,7 +592,7 @@ GetFrameStyle proc
     ; AX --> FrameStyleStruct
     add ax, offset FrameStylesTable
 
-    @@End:
+@@End:
 
     ret
 
@@ -604,41 +631,6 @@ ParseCustomFrameStyle proc
     ret
 
 ParseCustomFrameStyle endp
-
-;--------------------------------------------------------------------------------
-; Short:   moves DI to the frame left upper corner
-; Exp:     DI = 0 (start of vram)
-; In:      BX = frame width
-;          DX = frame height
-; Out:     DI = lu corner pos
-; Destroy: AX, SI
-;--------------------------------------------------------------------------------
-
-GetFrameLeftUpperCornerPos proc
-
-    ; di = center of the screen
-    mov di, (SCREEN_WIDTH * 2 * (SCREEN_HEIGHT / 2) + SCREEN_WIDTH)
-
-    ; move left half a frame
-    sub di, bx
-
-    ; move up half a frame
-    push dx
-
-    ; if height is odd --> add one to divide by 2
-    mov ax, dx
-    call MakeEven
-
-    mov si, SCREEN_WIDTH
-    mul si
-
-    sub di, ax
-
-    pop dx
-
-    ret
-
-GetFrameLeftUpperCornerPos endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   Draws horizontal frame line in vram
@@ -740,33 +732,26 @@ DrawFrame proc
 DrawFrame endp
 
 ;--------------------------------------------------------------------------------
-; Short:   Prints cmd line in vram in the center of the frame
-; Exp:     DF = 0
-; In:      DI = lu frame corner pos
+; Short:   Loads the text to vram
+; Exp:     ES = VideoSegment
+;          DF = 0
+; In:      DI = text start pos in vram
+;          SI = text start pos in data
 ;          CX = text length
-;          SI --> text
 ;          AH = text color
-; Destroy: BX, CX, DI, SI
+; Destroy: CX, DI, SI
 ;--------------------------------------------------------------------------------
 
-DrawCenteredText proc
+mLoadText macro
+    local @@Next
 
-    ; if TextLen <= 0 -> jump to the end
-    cmp cx, 0
-    jle @@End
+    @@Next:
+        lodsb
+        stosw
 
-    push si ax
-    call SetWritingStartPos
-    pop ax si
+    loop @@Next
 
-    ; tail call --> ret of inside function will return from our function
-    jmp LoadText
-
-    @@End:
-
-    ret
-
-DrawCenteredText endp
+    endm
 
 ;--------------------------------------------------------------------------------
 ; Short:   Sets DI to a pos to write text
@@ -778,7 +763,7 @@ DrawCenteredText endp
 ; Destroy: AX, BX, SI
 ;--------------------------------------------------------------------------------
 
-SetWritingStartPos proc
+mSetWritingStartPos macro
 
     ; ---------- go to the frame center ------------
 
@@ -790,7 +775,7 @@ SetWritingStartPos proc
 
     ; if height is odd --> add one to divide by 2
     mov ax, dx
-    call MakeEven
+    mMakeEven ax
     sub ax, 2
 
     mov si, SCREEN_WIDTH
@@ -807,41 +792,44 @@ SetWritingStartPos proc
 
     test bx, 01h
 
-    jz @@EvenLen
+    jz $+3 ; @@EvenLen
         ; if CmdTailLen is odd: bx++ (shift one more)
         inc bx
-    @@EvenLen:
+; @@EvenLen:
 
     ; no need to div by 2, as there are 2 bytes in vram
     ; di = center - shift
     sub di, bx
 
-    ret
-
-SetWritingStartPos endp
+    endm
 
 ;--------------------------------------------------------------------------------
-; Short:   Loads the text to vram
-; Exp:     ES = VideoSegment
-;          DF = 0
-; In:      DI = text start pos in vram
-;          SI = text start pos in data
+; Short:   Prints cmd line in vram in the center of the frame
+; Exp:     DF = 0
+; In:      DI = lu frame corner pos
 ;          CX = text length
+;          SI --> text
 ;          AH = text color
-; Destroy: CX, DI, SI
+; Destroy: BX, CX, DI, SI
 ;--------------------------------------------------------------------------------
 
-LoadText proc
+DrawCenteredText proc
 
-    @@Next:
-        lodsb
-        stosw
+    ; if TextLen <= 0 -> jump to the end
+    cmp cx, 0
+    jle @@End
 
-    loop @@Next
+    push si ax
+    mSetWritingStartPos
+    pop ax si
+
+    mLoadText
+
+    @@End:
 
     ret
 
-LoadText endp
+DrawCenteredText endp
 
 ;--------------------------------------------------------------------------------
 ; Short:   ends the program
@@ -863,11 +851,8 @@ Exit endp
 
 .data
 
-AnimationStep dw ?
-
 CustomFrameStyle FrameStyle <                       \
         (             (GRAY_BG + BRT_RED) * 100h),  \
-        (                         GRAY_BG * 100h),  \
         (LU_CORNER  + (GRAY_BG + BRT_RED) * 100h),  \
         (HORIZ_LINE + (GRAY_BG + BRT_RED) * 100h),  \
         (RU_CORNER  + (GRAY_BG + BRT_RED) * 100h),  \
@@ -885,7 +870,6 @@ FrameStylesTable label FrameStyle
 
 RegsFrameStyle FrameStyle <                     \
     (             (PINK    + GRAY_BG) * 100h),  \
-    (                        GRAY_BG  * 100h),  \
     (LU_CORNER  + (BRT_RED + GRAY_BG) * 100h),  \
     (HORIZ_LINE + (BRT_RED + GRAY_BG) * 100h),  \
     (RU_CORNER  + (BRT_RED + GRAY_BG) * 100h),  \
@@ -900,7 +884,6 @@ RegsFrameStyle FrameStyle <                     \
 ; [2] = pink
     FrameStyle <                            \
         (        (WHITE + PINK_BG) * 100h), \
-        (                 PINK_BG  * 100h), \
         (HEART + (WHITE + PINK_BG) * 100h), \
         (HEART + (WHITE + PINK_BG) * 100h), \
         (HEART + (WHITE + PINK_BG) * 100h), \
@@ -915,7 +898,6 @@ RegsFrameStyle FrameStyle <                     \
 ; [3] = cursed
     FrameStyle <                        \
         (             BLUE    * 100h),  \
-        (             BLACK   * 100h),  \
         (0d2h       + BRT_RED * 100h),  \
         (06h        + BRT_RED * 100h),  \
         (0fh        + BRT_RED * 100h),  \
@@ -930,7 +912,6 @@ RegsFrameStyle FrameStyle <                     \
 ; [4] = penis c1h c2h
     FrameStyle <                            \
         (                BLUE     * 100h),  \
-        (                BLUE_BG  * 100h),  \
         (0c1h  + (BLUE + BLUE_BG) * 100h),  \
         (0c2h  + (BLUE + BLUE_BG) * 100h),  \
         (0c1h  + (BLUE + BLUE_BG) * 100h),  \
@@ -945,12 +926,11 @@ RegsFrameStyle FrameStyle <                     \
 ; [5] = funny faces
     FrameStyle <                        \
         (              4eh    * 100h),  \
-        (              4eh    * 100h),  \
         (02h         + 4eh    * 100h),  \
         (01h         + 4eh    * 100h),  \
         (02h         + 4eh    * 100h),  \
         (02h         + 4eh    * 100h),  \
-        (SPACE      + BRT_RED * 100h),  \
+        (SPACE       + 4eh    * 100h),  \
         (02h         + 4eh    * 100h),  \
         (02h         + 4eh    * 100h),  \
         (01h         + 4eh    * 100h),  \
